@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 using StockNet.Api.Contracts.Stocks;
 using StockNet.Api.Domain.Entities;
 using StockNet.Api.Infrastructure.Authorization;
@@ -17,6 +18,51 @@ public sealed class StocksController(
     StockNetDbContext dbContext,
     StockSubscriptionGuard subscriptionGuard) : ControllerBase
 {
+    [AllowAnonymous]
+    [HttpGet("map")]
+    [ProducesResponseType<IReadOnlyList<StockMapDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<StockMapDto>>> Map(
+        [FromQuery] StockMapQuery query,
+        CancellationToken cancellationToken)
+    {
+        var center = new Point(query.Longitude!.Value, query.Latitude!.Value) { SRID = 4326 };
+        var radiusMeters = query.Radius!.Value;
+        var now = DateTime.UtcNow;
+
+        var stocks = dbContext.Stocks
+            .AsNoTracking()
+            .Where(stock => stock.IsActive
+                && stock.AvailableFrom <= now
+                && stock.AvailableTo >= now
+                && stock.Category.IsActive
+                && stock.Warehouse.Location.IsWithinDistance(center, radiusMeters));
+
+        if (query.CategoryId is { } categoryId)
+        {
+            stocks = stocks.Where(stock => stock.CategoryId == categoryId);
+        }
+
+        if (query.MinPrice is { } minPrice)
+        {
+            stocks = stocks.Where(stock => stock.PricePerTon >= minPrice);
+        }
+
+        if (query.MaxPrice is { } maxPrice)
+        {
+            stocks = stocks.Where(stock => stock.PricePerTon <= maxPrice);
+        }
+
+        var results = await stocks
+            .OrderBy(stock => stock.Warehouse.Location.Distance(center))
+            .ThenBy(stock => stock.Id)
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .Select(StockMapDto.Projection(center))
+            .ToListAsync(cancellationToken);
+
+        return Ok(results);
+    }
+
     [HttpPost]
     [ProducesResponseType<StockDto>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]

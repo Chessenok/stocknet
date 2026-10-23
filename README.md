@@ -41,3 +41,15 @@ dotnet build StockNet.slnx
 ```
 
 The category seed is managed in `CategoryConfiguration` and included in the initial EF migration. Spatial columns use PostGIS `geography(Point, 4326)`; create query points with X = longitude, Y = latitude, and SRID 4326.
+
+## Integration tests
+
+The integration suite uses the configured PostgreSQL/PostGIS database and removes its test data on completion. Start the `db` service and apply migrations first, then run:
+
+```sh
+export ConnectionStrings__StockNet="Host=localhost;Port=5432;Database=stocknet;Username=stocknet;Password=stocknet"
+export Jwt__SigningKey="$(openssl rand -base64 48)"
+dotnet test StockNet.slnx
+```
+
+The spatial map integration test verifies active/availability filters, public DTO fields, radius validation, generated `ST_DWithin` SQL, and use of the warehouse GiST index.

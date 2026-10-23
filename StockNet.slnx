@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/StockNet.Api/StockNet.Api.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/StockNet.Api.IntegrationTests/StockNet.Api.IntegrationTests.csproj" />
+  </Folder>
 </Solution>
