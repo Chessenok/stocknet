@@ -209,6 +209,9 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                     { 8, "Other raw materials", true, "Other", "other", 80 }
                 });
 
+            migrationBuilder.Sql(
+                """SELECT setval(pg_get_serial_sequence('"Categories"', 'Id'), 8, true);""");
+
             migrationBuilder.CreateIndex(
                 name: "IX_Categories_IsActive_SortOrder",
                 table: "Categories",

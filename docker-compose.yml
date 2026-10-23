@@ -1,22 +1,18 @@
 services:
-  postgres:
-    image: postgis/postgis:17-3.5
-    container_name: stocknet-postgres
-    restart: unless-stopped
+  db:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.postgis
+    container_name: stocknet-postgis
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-stocknet}
-      POSTGRES_USER: ${POSTGRES_USER:-stocknet}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stocknet_dev_password}
+      POSTGRES_USER: stocknet
+      POSTGRES_PASSWORD: stocknet
+      POSTGRES_DB: stocknet
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     volumes:
-      - stocknet-postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
+      - stocknet-pgdata:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d
 
 volumes:
-  stocknet-postgres-data:
+  stocknet-pgdata:

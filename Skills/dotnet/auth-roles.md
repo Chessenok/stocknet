@@ -8,7 +8,7 @@
 - Do not rely on a stale JWT claim for current company ownership, admin status, or subscription state where a database check is required.
 
 ## 2. Subscription Guard for Stock Writes
-Any attempt to create or update a stock must validate the authenticated company's subscription. This is the only MVP feature gated by subscription:
+Any attempt to create a stock or update its content must validate the authenticated company's subscription. Archiving/deleting stock is exempt. This is the only MVP feature gated by subscription:
 
 ```csharp
 public async Task<bool> ValidateCompanyCanPostStockAsync(Guid companyId)
