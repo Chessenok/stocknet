@@ -20,6 +20,7 @@ public sealed class MessageThreadConfiguration : IEntityTypeConfiguration<Messag
         builder.HasIndex(thread => new { thread.BuyerCompanyId, thread.CreatedAt });
         builder.HasIndex(thread => new { thread.SellerCompanyId, thread.CreatedAt });
         builder.HasIndex(thread => thread.StockId);
+        builder.HasIndex(thread => new { thread.StockId, thread.BuyerCompanyId }).IsUnique();
 
         builder.HasMany(thread => thread.Messages)
             .WithOne(message => message.Thread)

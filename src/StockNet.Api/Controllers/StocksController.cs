@@ -187,6 +187,28 @@ public sealed class StocksController(
         return NoContent();
     }
 
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        var companyId = User.GetCompanyId();
+        var stock = await dbContext.Stocks
+            .SingleOrDefaultAsync(
+                item => item.Id == id && item.Warehouse.CompanyId == companyId,
+                cancellationToken);
+
+        if (stock is null)
+        {
+            return NotFound();
+        }
+
+        dbContext.Stocks.Remove(stock);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
+    }
+
     [HttpGet("my")]
     [ProducesResponseType<IReadOnlyList<StockDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<StockDto>>> ListMine(CancellationToken cancellationToken)

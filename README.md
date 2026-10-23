@@ -52,4 +52,4 @@ export Jwt__SigningKey="$(openssl rand -base64 48)"
 dotnet test StockNet.slnx
 ```
 
-The spatial map integration test verifies active/availability filters, public DTO fields, radius validation, generated `ST_DWithin` SQL, and use of the warehouse GiST index.
+The spatial map integration test verifies active/availability filters, public DTO fields, radius validation, generated `ST_DWithin` SQL, and use of the warehouse GiST index. Messaging integration tests cover participant access, duplicate thread prevention, paginated message order, and stock-delete cascade behavior.

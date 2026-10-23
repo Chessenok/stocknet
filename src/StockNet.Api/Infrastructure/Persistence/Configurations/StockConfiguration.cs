@@ -42,6 +42,6 @@ public sealed class StockConfiguration : IEntityTypeConfiguration<Stock>
         builder.HasMany(stock => stock.MessageThreads)
             .WithOne(thread => thread.Stock)
             .HasForeignKey(thread => thread.StockId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

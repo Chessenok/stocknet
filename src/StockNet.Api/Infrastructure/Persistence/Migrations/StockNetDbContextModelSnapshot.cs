@@ -284,6 +284,9 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SellerCompanyId", "CreatedAt");
 
+                    b.HasIndex("StockId", "BuyerCompanyId")
+                        .IsUnique();
+
                     b.ToTable("MessageThreads", null, t =>
                         {
                             t.HasCheckConstraint("CK_MessageThreads_DistinctCompanies", "\"BuyerCompanyId\" <> \"SellerCompanyId\"");
@@ -460,7 +463,7 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                     b.HasOne("StockNet.Api.Domain.Entities.Stock", "Stock")
                         .WithMany("MessageThreads")
                         .HasForeignKey("StockId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("BuyerCompany");

@@ -53,7 +53,7 @@ Relation: `Warehouse (1) -> Stock (N)`
 
 Search-active stock means `IsActive == true` and `AvailableFrom <= current UTC time <= AvailableTo`.
 
-Only the owning company (resolved through `Stock -> Warehouse -> Company`) can modify a stock. Creating or updating stock content requires a current subscription; archiving or deleting stock does not. `IsSubscribed = true` with no expiry is perpetual access; otherwise the expiry must be after current UTC time. Do not apply subscription checks to search or messaging.
+Only the owning company (resolved through `Stock -> Warehouse -> Company`) can modify a stock. Creating or updating stock content requires a current subscription; archiving or deleting stock does not. Hard deletion cascades through its message threads and messages; archiving preserves them. `IsSubscribed = true` with no expiry is perpetual access; otherwise the expiry must be after current UTC time. Do not apply subscription checks to search or messaging.
 
 ### MessageThread
 Represents a direct pre-call communication channel between a Buyer and a Seller around a specific Stock.
@@ -62,6 +62,8 @@ Represents a direct pre-call communication channel between a Buyer and a Seller 
 - `BuyerCompanyId` (Guid, FK -> Company)
 - `SellerCompanyId` (Guid, FK -> Company)
 - `CreatedAt` (DateTime, UTC)
+
+At most one thread may exist per `(StockId, BuyerCompanyId)`. Creating a thread requires the caller to be distinct from the stock owner and the stock to be currently active and available.
 
 ### Message
 Represents an individual text message sent within a specific MessageThread.
