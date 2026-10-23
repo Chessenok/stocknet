@@ -1,0 +1,154 @@
+# ============================================================
+# StockNet Backend (.NET 10 / ASP.NET Core) - .gitignore
+# ============================================================
+
+# -------------------- Build results --------------------
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# -------------------- Visual Studio / VS Code / Rider --------------------
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.rsuser
+.idea/
+*.sln.iml
+
+# -------------------- NuGet --------------------
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# -------------------- Test & coverage --------------------
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+*.lcov
+TestResults/
+nunit-*.xml
+
+# -------------------- ASP.NET / publish --------------------
+publish/
+**/[Pp]ublish/
+*.Publish.xml
+*.azurePubxml
+*.pubxml
+*.publishproj
+AppPackages/
+BundleArtifacts/
+Package.StoreAssociation.xml
+_StoreAssociation.xml
+*.appx
+*.appxbundle
+*.appxupload
+
+# -------------------- Secrets & local config --------------------
+# Keep template files, ignore real secrets
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json.example
+!appsettings.*.json.example
+secrets.json
+*.pfx
+*.p12
+*.key
+*.pem
+*.crt
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# -------------------- EF Core / Database --------------------
+# Local migrations snapshots sometimes generated
+**/Migrations/*.Designer.cs.bak
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# -------------------- Docker --------------------
+# Keep docker-compose.yml and Dockerfiles under version control
+# Ignore local overrides and volumes data
+docker-compose.override.yml
+docker-compose.*.yml
+!docker-compose.yml
+!docker-compose.override.yml.example
+.docker/
+**/postgres-data/
+**/pgdata/
+**/data/
+
+# -------------------- Logs (Serilog etc.) --------------------
+*.log
+logs/
+log/
+serilog-*.json
+
+# -------------------- OS generated --------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# -------------------- Temporary / cache --------------------
+*.tmp
+*.temp
+*.swp
+*~
+*.cache
+*.pid
+*.seed
+*.pid.lock
+
+# -------------------- Excel import temp files (MiniExcel / ClosedXML) --------------------
+~$*
+*.xlsx.tmp
+*.xls.tmp
+UploadedFiles/
+TempUploads/
+ImportTemp/
+
+# -------------------- Stripe / webhooks local testing --------------------
+stripe-cli/
+.stripe/
+
+# -------------------- Others --------------------
+*.bak
+*.orig
+*.rej
+node_modules/          # just in case any frontend tooling sneaks in
+dist/
+.sass-cache/
