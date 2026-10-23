@@ -1,15 +1,20 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Formatting.Json;
+using StockNet.Api.Domain.Entities;
 using StockNet.Api.Infrastructure.Authorization;
+using StockNet.Api.Infrastructure.Authentication;
 using StockNet.Api.Infrastructure.Errors;
 using StockNet.Api.Infrastructure.Health;
 using StockNet.Api.Infrastructure.Persistence;
+using StockNet.Api.Services;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -50,6 +55,7 @@ try
     var jwtIssuer = jwtConfiguration["Issuer"];
     var jwtAudience = jwtConfiguration["Audience"];
     var jwtSigningKey = jwtConfiguration["SigningKey"];
+    var jwtExpirationMinutes = jwtConfiguration.GetValue("ExpirationMinutes", 60);
 
     if (string.IsNullOrWhiteSpace(jwtIssuer) || string.IsNullOrWhiteSpace(jwtAudience))
     {
@@ -61,9 +67,18 @@ try
         throw new InvalidOperationException("Jwt:SigningKey must be configured with at least 32 UTF-8 bytes.");
     }
 
-    builder.Services.AddControllers();
+    if (jwtExpirationMinutes is < 5 or > 1440)
+    {
+        throw new InvalidOperationException("Jwt:ExpirationMinutes must be between 5 and 1440.");
+    }
+
+    builder.Services.AddControllers()
+        .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
     builder.Services.AddDbContext<StockNetDbContext>(options =>
         options.UseNpgsql(connectionString, npgsqlOptions => npgsqlOptions.UseNetTopologySuite()));
+    builder.Services.AddScoped<IPasswordHasher<Company>, PasswordHasher<Company>>();
+    builder.Services.AddScoped<JwtTokenService>();
+    builder.Services.AddScoped<IAuthService, AuthService>();
 
     builder.Services
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
