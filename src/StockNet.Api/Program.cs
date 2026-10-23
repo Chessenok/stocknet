@@ -79,6 +79,7 @@ try
     builder.Services.AddScoped<IPasswordHasher<Company>, PasswordHasher<Company>>();
     builder.Services.AddScoped<JwtTokenService>();
     builder.Services.AddScoped<IAuthService, AuthService>();
+    builder.Services.AddScoped<StockSubscriptionGuard>();
 
     builder.Services
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
