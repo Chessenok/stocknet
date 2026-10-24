@@ -205,6 +205,10 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<string>("StripeSubscriptionId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<DateTime?>("SubscriptionExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -221,6 +225,9 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("StripeCustomerId")
+                        .IsUnique();
+
+                    b.HasIndex("StripeSubscriptionId")
                         .IsUnique();
 
                     b.HasIndex("CountryCode", "TaxId");
@@ -291,6 +298,27 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_MessageThreads_DistinctCompanies", "\"BuyerCompanyId\" <> \"SellerCompanyId\"");
                         });
+                });
+
+            modelBuilder.Entity("StockNet.Api.Domain.Entities.ProcessedStripeEvent", b =>
+                {
+                    b.Property<string>("EventId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("EventId");
+
+                    b.HasIndex("ProcessedAtUtc");
+
+                    b.ToTable("ProcessedStripeEvents", (string)null);
                 });
 
             modelBuilder.Entity("StockNet.Api.Domain.Entities.Stock", b =>

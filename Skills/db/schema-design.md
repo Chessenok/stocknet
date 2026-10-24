@@ -73,4 +73,7 @@ Represents an individual text message sent within a specific MessageThread.
 - `Text` (string)
 - `SentAt` (DateTime, UTC)
 
+### ProcessedStripeEvent
+Webhook idempotency ledger keyed by Stripe Event ID. Stores event type and UTC processing time; it intentionally has no Company FK because webhook events may be unrelated or refer to deleted accounts.
+
 No Order, Cart, or goods-checkout entities are part of the MVP. A message thread is accessible only to its `BuyerCompanyId` and `SellerCompanyId`; the authenticated CompanyId must match one of those participants for reads and writes.

@@ -31,9 +31,14 @@ var session = await new SessionService().CreateAsync(options);
 
 ## 3. Webhooks and Subscription State
 - Validate webhook signatures against the raw request body using a server-side webhook secret.
-- Persist processed event IDs or otherwise guarantee idempotent event handling.
+- Read the raw body asynchronously, then use Stripe.net 53's synchronous `EventUtility.ConstructEvent` signature verifier (this pinned SDK version has no `ConstructEventAsync` method).
+- Persist processed event IDs in `ProcessedStripeEvent` in the same transaction as any Company subscription update. Duplicate deliveries must return success without applying the update twice.
 - Update subscription fields on Company only from verified Stripe events; a browser redirect is not proof of payment.
-- Handle the required lifecycle events to activate, renew, cancel, or expire subscriptions. Apply state changes transactionally where possible.
+- Persist the active Stripe subscription ID on Company and ignore lifecycle events for a superseded subscription.
+- Handle `checkout.session.completed`, `invoice.payment_succeeded`, `customer.subscription.updated`, and `customer.subscription.deleted`. Resolve the authoritative subscription state for checkout and invoice events.
+- Treat Stripe `active`/`trialing` as entitled only when the subscription period end is in the future; store the period end in UTC.
+- Apply webhook idempotency and subscription state changes transactionally.
+- Treat `active`/`trialing` subscriptions as entitled only when the current period end is in the future; convert Stripe timestamps to UTC.
 - The stock write authorization check must read authoritative current company subscription state and reject unsubscribed/expired companies with `403 Forbidden`.
 - Do not place subscription gates on unrelated features or infer entitlement from stale JWT claims.
 - Never log Stripe secrets, webhook signing secrets, authorization headers, or sensitive payment data.

@@ -25,9 +25,11 @@ public sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(company => company.CreatedAt).IsRequired();
         builder.Property(company => company.UpdatedAt).IsRequired();
         builder.Property(company => company.StripeCustomerId).HasMaxLength(128);
+        builder.Property(company => company.StripeSubscriptionId).HasMaxLength(128);
 
         builder.HasIndex(company => company.NormalizedEmail).IsUnique();
         builder.HasIndex(company => company.StripeCustomerId).IsUnique();
+        builder.HasIndex(company => company.StripeSubscriptionId).IsUnique();
         builder.HasIndex(company => new { company.CountryCode, company.TaxId });
 
         builder.HasMany(company => company.Warehouses)

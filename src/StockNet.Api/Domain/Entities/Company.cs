@@ -19,6 +19,7 @@ public sealed class Company
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public string? StripeCustomerId { get; set; }
+    public string? StripeSubscriptionId { get; set; }
 
     public ICollection<Warehouse> Warehouses { get; set; } = new List<Warehouse>();
     public ICollection<MessageThread> BuyerMessageThreads { get; set; } = new List<MessageThread>();

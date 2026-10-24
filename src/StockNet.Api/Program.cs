@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -14,7 +15,10 @@ using StockNet.Api.Infrastructure.Authentication;
 using StockNet.Api.Infrastructure.Errors;
 using StockNet.Api.Infrastructure.Health;
 using StockNet.Api.Infrastructure.Persistence;
+using StockNet.Api.Infrastructure.Seeding;
+using StockNet.Api.Options;
 using StockNet.Api.Services;
+using StockNet.Api.Services.Billing;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -26,6 +30,12 @@ try
     Log.Information("Starting StockNet API");
 
     var builder = WebApplication.CreateBuilder(args);
+
+    const long maxMultipartBodyBytes = 10 * 1024 * 1024;
+    const long maxRequestBodyBytes = 12 * 1024 * 1024;
+    var allowedCorsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+
+    builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = maxRequestBodyBytes);
 
     builder.Host.UseSerilog((context, services, loggerConfiguration) =>
     {
@@ -74,12 +84,23 @@ try
 
     builder.Services.AddControllers()
         .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+    builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = maxMultipartBodyBytes);
+    builder.Services.AddCors(options => options.AddPolicy("Frontend", policy => policy
+        .WithOrigins(allowedCorsOrigins)
+        .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+        .WithHeaders("Authorization", "Content-Type")
+        .WithExposedHeaders("Location")));
     builder.Services.AddDbContext<StockNetDbContext>(options =>
         options.UseNpgsql(connectionString, npgsqlOptions => npgsqlOptions.UseNetTopologySuite()));
     builder.Services.AddScoped<IPasswordHasher<Company>, PasswordHasher<Company>>();
     builder.Services.AddScoped<JwtTokenService>();
     builder.Services.AddScoped<IAuthService, AuthService>();
     builder.Services.AddScoped<StockSubscriptionGuard>();
+    builder.Services.AddScoped<DevelopmentSeeder>();
+    builder.Services.AddScoped<PerformanceSeeder>();
+    builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
+    builder.Services.AddSingleton<IStripeGateway, StripeGateway>();
+    builder.Services.AddScoped<IStripeBillingService, StripeBillingService>();
 
     builder.Services
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -144,6 +165,7 @@ try
     app.UseStatusCodePages();
     app.UseSerilogRequestLogging();
     app.UseHttpsRedirection();
+    app.UseCors("Frontend");
     app.UseAuthentication();
     app.UseAuthorization();
 
@@ -163,15 +185,28 @@ try
                 checks = report.Entries.ToDictionary(entry => entry.Key, entry => entry.Value.Status.ToString())
             });
         }
-    }).RequireAuthorization();
+    }).AllowAnonymous();
 
     app.MapControllers();
+
+    if (app.Environment.IsDevelopment())
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var seeder = scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>();
+        await seeder.SeedAsync(app.Lifetime.ApplicationStopping);
+
+        if (app.Configuration.GetValue<bool>("Seed:PerformanceData"))
+        {
+            var performanceSeeder = scope.ServiceProvider.GetRequiredService<PerformanceSeeder>();
+            await performanceSeeder.SeedAsync(10, 2, 50, app.Lifetime.ApplicationStopping);
+        }
+    }
 
     app.Run();
 }
 catch (Exception exception) when (exception is not HostAbortedException)
 {
-    Log.Fatal(exception, "StockNet API terminated unexpectedly");
+    Log.Fatal(exception, "StockNet API terminated unexpectedly. ExceptionType: {ExceptionType}", exception.GetType().FullName);
     Environment.ExitCode = 1;
 }
 finally

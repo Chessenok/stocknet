@@ -14,7 +14,12 @@ public sealed class GlobalExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken)
     {
-        logger.LogError(exception, "Unhandled API exception. TraceId: {TraceId}", httpContext.TraceIdentifier);
+        logger.LogError(
+            exception,
+            "Unhandled API exception. ExceptionType: {ExceptionType}. Message: {Message}. TraceId: {TraceId}",
+            exception.GetType().FullName,
+            exception.Message,
+            httpContext.TraceIdentifier);
 
         var problem = new ProblemDetails
         {

@@ -23,9 +23,20 @@ Configure the API connection string in user-secrets (the Compose credentials are
 ```sh
 dotnet user-secrets set "ConnectionStrings:StockNet" "Host=localhost;Port=5432;Database=stocknet;Username=stocknet;Password=stocknet" --project src/StockNet.Api/StockNet.Api.csproj
 dotnet user-secrets set "Jwt:SigningKey" "$(openssl rand -base64 48)" --project src/StockNet.Api/StockNet.Api.csproj
+dotnet user-secrets set "Stripe:ApiKey" "sk_test_your_key" --project src/StockNet.Api/StockNet.Api.csproj
+dotnet user-secrets set "Stripe:PriceId" "price_your_subscription_price" --project src/StockNet.Api/StockNet.Api.csproj
+dotnet user-secrets set "Stripe:WebhookSecret" "whsec_your_webhook_secret" --project src/StockNet.Api/StockNet.Api.csproj
+dotnet user-secrets set "Seed:AdminPassword" "$(openssl rand -base64 32)" --project src/StockNet.Api/StockNet.Api.csproj
+dotnet user-secrets set "Seed:SupplierPassword" "$(openssl rand -base64 32)" --project src/StockNet.Api/StockNet.Api.csproj
 ```
 
+Development startup idempotently seeds categories and the `admin@stocknet.local` / `supplier@stocknet.local` accounts. The admin and supplier seed passwords are required in user-secrets and are never logged.
+
 `Jwt:Issuer` and `Jwt:Audience` have non-secret defaults in `appsettings.json`; override them per environment when needed. The signing key must contain at least 32 UTF-8 bytes.
+
+Stripe success/cancel URLs have local development defaults in `appsettings.json` and can be overridden with `Stripe:SuccessUrl` and `Stripe:CancelUrl` user-secrets. To test signed webhooks locally, run `stripe listen --forward-to http://localhost:5172/api/billing/webhooks`, then use the `whsec_...` value printed by Stripe CLI as `Stripe:WebhookSecret`.
+
+Configure browser CORS per environment with exact origins, for example `Cors__AllowedOrigins__0=https://app.example.com`. The default allowed-origin list is empty and credentials are not enabled.
 
 Create/update the database from the committed migrations, including the PostGIS extension and initial categories:
 
@@ -53,3 +64,11 @@ dotnet test StockNet.slnx
 ```
 
 The spatial map integration test verifies active/availability filters, public DTO fields, radius validation, generated `ST_DWithin` SQL, and use of the warehouse GiST index. Messaging integration tests cover participant access, duplicate thread prevention, paginated message order, and stock-delete cascade behavior.
+
+## Excel stock import
+
+`POST /api/stocks/import` accepts a multipart `.xlsx` with a `WarehouseId` field and a `File` field. The first worksheet must have headers `CategoryId`, `Title`, `Description`, `TotalQuantityTons`, `MinOrderQuantityTons`, `StepQuantityTons`, `PackagingType`, `PricePerTon`, `Currency`, `AvailableFrom`, and `AvailableTo`. `AttributesJson` is optional and must contain a JSON object. Imports are limited to 10 MB and 1,000 rows; all rows are validated before any are written.
+
+## API container and CI
+
+Build the non-root multi-stage API image with `docker build -t stocknet-api .`. The API container listens on port 8080 and expects connection string, JWT, Stripe, and CORS settings through environment configuration. The GitHub Actions workflow builds the solution and runs integration tests against a temporary PostgreSQL/PostGIS service.

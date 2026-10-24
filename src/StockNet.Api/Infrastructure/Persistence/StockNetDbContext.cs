@@ -11,6 +11,7 @@ public sealed class StockNetDbContext(DbContextOptions<StockNetDbContext> option
     public DbSet<Stock> Stocks => Set<Stock>();
     public DbSet<MessageThread> MessageThreads => Set<MessageThread>();
     public DbSet<Message> Messages => Set<Message>();
+    public DbSet<ProcessedStripeEvent> ProcessedStripeEvents => Set<ProcessedStripeEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
