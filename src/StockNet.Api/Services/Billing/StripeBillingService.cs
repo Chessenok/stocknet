@@ -55,43 +55,49 @@ public sealed class StripeBillingService(
 
         var subscriptionUpdate = await ResolveSubscriptionUpdateAsync(stripeEvent, cancellationToken);
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        if (await dbContext.ProcessedStripeEvents
-            .AsNoTracking()
-            .AnyAsync(item => item.EventId == stripeEvent.Id, cancellationToken))
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            await transaction.RollbackAsync(cancellationToken);
-            return false;
-        }
+            dbContext.ChangeTracker.Clear();
 
-        dbContext.ProcessedStripeEvents.Add(new ProcessedStripeEvent
-        {
-            EventId = stripeEvent.Id,
-            EventType = stripeEvent.Type,
-            ProcessedAtUtc = DateTime.UtcNow
-        });
-
-        if (subscriptionUpdate is not null)
-        {
-            var company = await FindCompanyAsync(subscriptionUpdate, cancellationToken);
-            if (company is not null && CanApplyUpdate(company, subscriptionUpdate))
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            if (await dbContext.ProcessedStripeEvents
+                .AsNoTracking()
+                .AnyAsync(item => item.EventId == stripeEvent.Id, cancellationToken))
             {
-                ApplySubscriptionUpdate(company, subscriptionUpdate);
+                await transaction.RollbackAsync(cancellationToken);
+                return false;
             }
-        }
 
-        try
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (DbUpdateException exception) when (IsDuplicateEvent(exception))
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            return false;
-        }
+            dbContext.ProcessedStripeEvents.Add(new ProcessedStripeEvent
+            {
+                EventId = stripeEvent.Id,
+                EventType = stripeEvent.Type,
+                ProcessedAtUtc = DateTime.UtcNow
+            });
 
-        return true;
+            if (subscriptionUpdate is not null)
+            {
+                var company = await FindCompanyAsync(subscriptionUpdate, cancellationToken);
+                if (company is not null && CanApplyUpdate(company, subscriptionUpdate))
+                {
+                    ApplySubscriptionUpdate(company, subscriptionUpdate);
+                }
+            }
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (DbUpdateException exception) when (IsDuplicateEvent(exception))
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return false;
+            }
+
+            return true;
+        });
     }
 
     private async Task<SubscriptionUpdate?> ResolveSubscriptionUpdateAsync(

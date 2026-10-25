@@ -42,7 +42,7 @@ When working on specific parts of the project, **read and follow the instruction
 ## 🛡 Core Domain Models Summary
 1. **Company:** Central identity/account (`Producer`, `Buyer`, `Forwarder` business classification). Contains credentials/contact identity, Tax ID (CUI), verification status, `IsAdmin`, and subscription fields (`IsSubscribed`, `SubscriptionExpiresAt`).
 2. **Warehouse:** Relation `Company 1 : N Warehouse`. Holds PostGIS `Point` coordinates.
-3. **Stock:** Relation `Warehouse 1 : N Stock`. Holds volumes (`TotalQuantityTons`, `MinOrderQuantityTons`, `StepQuantityTons`), pricing, dynamic JSONB `Attributes`, and temporal availability (`AvailableFrom`, `AvailableTo`).
+3. **Stock:** Relation `Warehouse 1 : N Stock`. Holds unit-agnostic quantities (`TotalQuantity`, `MinOrderQuantity`, `StepQuantity`) and `UnitOfMeasure`, `PricePerUnit`, category-validated JSONB `Attributes`, and temporal availability (`AvailableFrom`, `AvailableTo`).
 4. **MessageThread & Message:** Direct communication channel linked to a specific stock and restricted to its buyer and seller companies.
 
 ---

@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using System.Text.Json;
 using NetTopologySuite.Geometries;
 using StockNet.Api.Domain.Entities;
+using StockNet.Api.Domain.Enums;
 
 namespace StockNet.Api.Contracts.Stocks;
 
@@ -12,11 +13,12 @@ internal sealed record StockProjection(
     int CategoryId,
     string Title,
     string Description,
-    decimal TotalQuantityTons,
-    decimal MinOrderQuantityTons,
-    decimal StepQuantityTons,
+    decimal TotalQuantity,
+    decimal MinOrderQuantity,
+    decimal StepQuantity,
+    UnitOfMeasure Unit,
     string PackagingType,
-    decimal PricePerTon,
+    decimal PricePerUnit,
     string Currency,
     JsonDocument? Attributes,
     DateTime AvailableFrom,
@@ -33,11 +35,12 @@ internal sealed record StockProjection(
         stock.CategoryId,
         stock.Title,
         stock.Description,
-        stock.TotalQuantityTons,
-        stock.MinOrderQuantityTons,
-        stock.StepQuantityTons,
+        stock.TotalQuantity,
+        stock.MinOrderQuantity,
+        stock.StepQuantity,
+        stock.Unit,
         stock.PackagingType,
-        stock.PricePerTon,
+        stock.PricePerUnit,
         stock.Currency,
         stock.Attributes,
         stock.AvailableFrom,
@@ -58,11 +61,12 @@ internal sealed record StockProjection(
                 CategoryId,
                 Title,
                 Description,
-                TotalQuantityTons,
-                MinOrderQuantityTons,
-                StepQuantityTons,
+                TotalQuantity,
+                MinOrderQuantity,
+                StepQuantity,
+                Unit,
                 PackagingType,
-                PricePerTon,
+                PricePerUnit,
                 Currency,
                 Attributes is null ? null : Attributes.RootElement.Clone(),
                 AvailableFrom,

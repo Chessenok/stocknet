@@ -14,13 +14,14 @@ public sealed class PerformanceSeeder(StockNetDbContext dbContext, ILogger<Perfo
         int stocksPerWarehouse,
         CancellationToken cancellationToken)
     {
-        var category = await dbContext.Categories
+        var categories = await dbContext.Categories
             .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.IsActive, cancellationToken);
+            .Where(item => item.IsActive && (item.Slug == "metals" || item.Slug == "industrial-equipment"))
+            .ToDictionaryAsync(item => item.Slug, cancellationToken);
 
-        if (category is null)
+        if (!categories.TryGetValue("metals", out var metalsCategory))
         {
-            category = new Category
+            metalsCategory = new Category
             {
                 Name = "Performance Test Category",
                 Slug = "performance-test-category",
@@ -28,9 +29,10 @@ public sealed class PerformanceSeeder(StockNetDbContext dbContext, ILogger<Perfo
                 SortOrder = 999,
                 IsActive = true
             };
-            dbContext.Categories.Add(category);
+            dbContext.Categories.Add(metalsCategory);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
+        categories.TryGetValue("industrial-equipment", out var equipmentCategory);
 
         var companies = new List<Company>(companyCount);
         for (var i = 0; i < companyCount; i++)
@@ -83,19 +85,23 @@ public sealed class PerformanceSeeder(StockNetDbContext dbContext, ILogger<Perfo
         {
             for (var s = 0; s < stocksPerWarehouse; s++)
             {
+                var isEquipment = equipmentCategory is not null && s % 2 == 1;
                 stocks.Add(new Stock
                 {
                     WarehouseId = warehouse.Id,
-                    CategoryId = category.Id,
+                    CategoryId = isEquipment ? equipmentCategory!.Id : metalsCategory.Id,
                     Title = $"Perf Stock {s + 1}",
                     Description = "Generated for load testing.",
-                    TotalQuantityTons = 100m,
-                    MinOrderQuantityTons = 1m,
-                    StepQuantityTons = 1m,
-                    PackagingType = "Bulk",
-                    PricePerTon = 50m + (s % 10),
+                    TotalQuantity = 100m,
+                    MinOrderQuantity = 1m,
+                    StepQuantity = 1m,
+                    Unit = isEquipment ? Domain.Enums.UnitOfMeasure.Pieces : Domain.Enums.UnitOfMeasure.Tons,
+                    PackagingType = isEquipment ? "Equipment" : "Bulk",
+                    PricePerUnit = 50m + (s % 10),
                     Currency = "EUR",
-                    Attributes = JsonDocument.Parse("{\"source\":\"performance-seeder\"}"),
+                    Attributes = JsonDocument.Parse(isEquipment
+                        ? "{\"equipment_type\":\"industrial\",\"source\":\"performance-seeder\"}"
+                        : "{\"steel_grade\":\"A\",\"source\":\"performance-seeder\"}"),
                     AvailableFrom = DateTime.UtcNow.AddDays(-1),
                     AvailableTo = DateTime.UtcNow.AddDays(30),
                     IsActive = true,

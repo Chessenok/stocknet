@@ -1,8 +1,7 @@
-using System.Linq.Expressions;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NetTopologySuite.Geometries;
-using StockNet.Api.Domain.Entities;
+using StockNet.Api.Domain.Enums;
 
 namespace StockNet.Api.Contracts.Stocks;
 
@@ -13,11 +12,12 @@ public sealed class StockMapDto
     public string Description { get; init; } = string.Empty;
     public int CategoryId { get; init; }
     public string Category { get; init; } = string.Empty;
-    public decimal TotalQuantityTons { get; init; }
-    public decimal MinOrderQuantityTons { get; init; }
-    public decimal StepQuantityTons { get; init; }
+    public decimal TotalQuantity { get; init; }
+    public decimal MinOrderQuantity { get; init; }
+    public decimal StepQuantity { get; init; }
+    public UnitOfMeasure Unit { get; init; }
     public string PackagingType { get; init; } = string.Empty;
-    public decimal PricePerTon { get; init; }
+    public decimal PricePerUnit { get; init; }
     public string Currency { get; init; } = string.Empty;
     public JsonElement? Attributes { get; init; }
     public DateTime AvailableFrom { get; init; }
@@ -29,40 +29,4 @@ public sealed class StockMapDto
     [JsonIgnore]
     public Point WarehousePoint { get; init; } = default!;
 
-    public static Expression<Func<Stock, StockMapDto>> Projection(Point center) => stock => new StockMapDto
-    {
-        Id = stock.Id,
-        Title = stock.Title,
-        Description = stock.Description,
-        CategoryId = stock.CategoryId,
-        Category = stock.Category.Name,
-        TotalQuantityTons = stock.TotalQuantityTons,
-        MinOrderQuantityTons = stock.MinOrderQuantityTons,
-        StepQuantityTons = stock.StepQuantityTons,
-        PackagingType = stock.PackagingType,
-        PricePerTon = stock.PricePerTon,
-        Currency = stock.Currency,
-        Attributes = ToJsonElement(stock.Attributes),
-        AvailableFrom = stock.AvailableFrom,
-        AvailableTo = stock.AvailableTo,
-        DistanceMeters = stock.Warehouse.Location.Distance(center),
-        WarehousePoint = stock.Warehouse.Location
-    };
-
-    private static JsonElement? ToJsonElement(JsonDocument? document)
-    {
-        if (document is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            return document.RootElement.Clone();
-        }
-        finally
-        {
-            document.Dispose();
-        }
-    }
 }

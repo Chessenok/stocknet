@@ -67,8 +67,26 @@ The spatial map integration test verifies active/availability filters, public DT
 
 ## Excel stock import
 
-`POST /api/stocks/import` accepts a multipart `.xlsx` with a `WarehouseId` field and a `File` field. The first worksheet must have headers `CategoryId`, `Title`, `Description`, `TotalQuantityTons`, `MinOrderQuantityTons`, `StepQuantityTons`, `PackagingType`, `PricePerTon`, `Currency`, `AvailableFrom`, and `AvailableTo`. `AttributesJson` is optional and must contain a JSON object. Imports are limited to 10 MB and 1,000 rows; all rows are validated before any are written.
+`POST /api/stocks/import` accepts a multipart `.xlsx` with a `WarehouseId` field and a `File` field. The first worksheet must have headers `CategoryId`, `Unit`, `Title`, `Description`, `TotalQuantity`, `MinOrderQuantity`, `StepQuantity`, `PackagingType`, `PricePerUnit`, `Currency`, `AvailableFrom`, and `AvailableTo`. `AttributesJson` is optional when the selected category has no required attributes; otherwise it must contain every category-required key. Imports are limited to 10 MB and 1,000 rows; all rows are validated before any are written. `Unit` values are `Tons`, `Kilograms`, `Pieces`, `Units`, `CubicMeters`, or `Liters`.
+
+Stock quantities and prices are unit-agnostic. `Pieces` and `Units` require whole-number total, minimum-order, and step quantities; other units accept up to three fractional digits. Categories form a parent/child taxonomy and define required JSONB attribute keys (for example, Metals requires `steel_grade`; Seeds requires `moisture` and `germination_rate`).
 
 ## API container and CI
 
 Build the non-root multi-stage API image with `docker build -t stocknet-api .`. The API container listens on port 8080 and expects connection string, JWT, Stripe, and CORS settings through environment configuration. The GitHub Actions workflow builds the solution and runs integration tests against a temporary PostgreSQL/PostGIS service.
+
+## Local performance / load testing
+
+Load tests use [k6](https://k6.io) and live in `tests/k6/`. Start the API and database first, then run:
+
+```sh
+k6 run tests/k6/smoke.js
+k6 run tests/k6/load-map.js
+```
+
+`load-map.js` drives the spatial discovery endpoint with up to 50 VUs. For stable results on macOS, give Colima/Docker at least 4 CPUs and 8 GB RAM; otherwise PostgreSQL can drop connections and Npgsql may report `cache lookup failed` (OID/type desync). If that happens, restart the database and retry:
+
+```sh
+docker compose down -v && docker compose up -d db
+dotnet ef database update --project src/StockNet.Api/StockNet.Api.csproj --startup-project src/StockNet.Api/StockNet.Api.csproj
+```

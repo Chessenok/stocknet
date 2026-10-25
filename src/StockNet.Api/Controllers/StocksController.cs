@@ -44,22 +44,28 @@ public sealed class StocksController(
 
         if (query.MinPrice is { } minPrice)
         {
-            stocks = stocks.Where(stock => stock.PricePerTon >= minPrice);
+            stocks = stocks.Where(stock => stock.PricePerUnit >= minPrice);
         }
 
         if (query.MaxPrice is { } maxPrice)
         {
-            stocks = stocks.Where(stock => stock.PricePerTon <= maxPrice);
+            stocks = stocks.Where(stock => stock.PricePerUnit <= maxPrice);
         }
 
-        var results = await stocks
+        if (query.Unit is { } unit)
+        {
+            stocks = stocks.Where(stock => stock.Unit == unit);
+        }
+
+        var rows = await stocks
             .OrderBy(stock => stock.Warehouse.Location.Distance(center))
             .ThenBy(stock => stock.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(StockMapDto.Projection(center))
+            .Select(StockMapProjection.Projection(center))
             .ToListAsync(cancellationToken);
 
+        var results = rows.Select(row => row.ToDto()).ToList();
         return Ok(results);
     }
 
@@ -89,9 +95,16 @@ public sealed class StocksController(
             return NotFound();
         }
 
-        if (!await IsActiveCategoryAsync(request.CategoryId, cancellationToken))
+        var category = await GetActiveCategoryAsync(request.CategoryId, cancellationToken);
+        if (category is null)
         {
             return InvalidCategory();
+        }
+
+        var missingAttributes = StockAttributeValidator.GetMissingRequiredKeys(category, request.Attributes);
+        if (missingAttributes.Count > 0)
+        {
+            return InvalidAttributes(missingAttributes);
         }
 
         using var attributes = ParseAttributes(request.Attributes);
@@ -102,11 +115,12 @@ public sealed class StocksController(
             CategoryId = request.CategoryId,
             Title = request.Title.Trim(),
             Description = request.Description.Trim(),
-            TotalQuantityTons = request.TotalQuantityTons!.Value,
-            MinOrderQuantityTons = request.MinOrderQuantityTons!.Value,
-            StepQuantityTons = request.StepQuantityTons!.Value,
+            TotalQuantity = request.TotalQuantity!.Value,
+            MinOrderQuantity = request.MinOrderQuantity!.Value,
+            StepQuantity = request.StepQuantity!.Value,
+            Unit = request.Unit,
             PackagingType = request.PackagingType.Trim(),
-            PricePerTon = request.PricePerTon!.Value,
+            PricePerUnit = request.PricePerUnit!.Value,
             Currency = request.Currency.Trim().ToUpperInvariant(),
             Attributes = attributes,
             AvailableFrom = request.AvailableFrom!.Value.UtcDateTime,
@@ -148,9 +162,16 @@ public sealed class StocksController(
             return SubscriptionRequired();
         }
 
-        if (!await IsActiveCategoryAsync(request.CategoryId, cancellationToken))
+        var category = await GetActiveCategoryAsync(request.CategoryId, cancellationToken);
+        if (category is null)
         {
             return InvalidCategory();
+        }
+
+        var missingAttributes = StockAttributeValidator.GetMissingRequiredKeys(category, request.Attributes);
+        if (missingAttributes.Count > 0)
+        {
+            return InvalidAttributes(missingAttributes);
         }
 
         using var previousAttributes = stock.Attributes;
@@ -225,10 +246,10 @@ public sealed class StocksController(
         return Ok(stockRows.Select(stock => stock.ToDto()).ToList());
     }
 
-    private Task<bool> IsActiveCategoryAsync(int categoryId, CancellationToken cancellationToken) =>
+    private Task<Category?> GetActiveCategoryAsync(int categoryId, CancellationToken cancellationToken) =>
         dbContext.Categories
             .AsNoTracking()
-            .AnyAsync(category => category.Id == categoryId && category.IsActive, cancellationToken);
+            .SingleOrDefaultAsync(category => category.Id == categoryId && category.IsActive, cancellationToken);
 
     private async Task<StockDto?> GetOwnedStockDtoAsync(
         Guid id,
@@ -249,11 +270,12 @@ public sealed class StocksController(
         stock.CategoryId = request.CategoryId;
         stock.Title = request.Title.Trim();
         stock.Description = request.Description.Trim();
-        stock.TotalQuantityTons = request.TotalQuantityTons!.Value;
-        stock.MinOrderQuantityTons = request.MinOrderQuantityTons!.Value;
-        stock.StepQuantityTons = request.StepQuantityTons!.Value;
+        stock.TotalQuantity = request.TotalQuantity!.Value;
+        stock.MinOrderQuantity = request.MinOrderQuantity!.Value;
+        stock.StepQuantity = request.StepQuantity!.Value;
+        stock.Unit = request.Unit;
         stock.PackagingType = request.PackagingType.Trim();
-        stock.PricePerTon = request.PricePerTon!.Value;
+        stock.PricePerUnit = request.PricePerUnit!.Value;
         stock.Currency = request.Currency.Trim().ToUpperInvariant();
         stock.Attributes = attributes;
         stock.AvailableFrom = request.AvailableFrom!.Value.UtcDateTime;
@@ -276,4 +298,11 @@ public sealed class StocksController(
         Status = StatusCodes.Status400BadRequest,
         Title = "The selected category does not exist or is inactive."
     });
+
+    private BadRequestObjectResult InvalidAttributes(IReadOnlyList<string> missingAttributes) => BadRequest(
+        new ValidationProblemDetails(new Dictionary<string, string[]>
+        {
+            [nameof(StockContentRequest.Attributes)] =
+            [.. missingAttributes.Select(key => $"The '{key}' attribute is required for this category.")]
+        }));
 }

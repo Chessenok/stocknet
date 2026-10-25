@@ -74,7 +74,12 @@ public sealed class MvpCompletionIntegrationTests : IAsyncLifetime
         await seeder.SeedAsync(CancellationToken.None);
         Assert.Equal(1, await dbContext.Companies.CountAsync(company => company.NormalizedEmail == adminEmail.ToUpperInvariant()));
         Assert.Equal(1, await dbContext.Companies.CountAsync(company => company.NormalizedEmail == supplierEmail.ToUpperInvariant()));
-        Assert.Equal(8, await dbContext.Categories.CountAsync());
+        Assert.Equal(10, await dbContext.Categories.CountAsync());
+        var seedsCategory = await dbContext.Categories.SingleAsync(category => category.Slug == "seeds");
+        Assert.Equal(7, seedsCategory.ParentId);
+        Assert.Equal(new[] { "moisture", "germination_rate" }, seedsCategory.RequiredAttributeKeys);
+        var equipmentCategory = await dbContext.Categories.SingleAsync(category => category.Slug == "industrial-equipment");
+        Assert.Equal(8, equipmentCategory.ParentId);
 
         var adminSession = await LoginAsync(adminEmail, "M7-seeded-admin-password-123!");
         var supplierSession = await LoginAsync(supplierEmail, "M7-seeded-supplier-password-123!");
@@ -184,8 +189,67 @@ public sealed class MvpCompletionIntegrationTests : IAsyncLifetime
             HttpMethod.Get,
             "/api/stocks/my",
             newCompany.AccessToken);
-        var importedStocks = await importedStocksResponse.Content.ReadFromJsonAsync<List<StockDto>>();
-        Assert.Equal("M7 imported stock", Assert.Single(importedStocks!).Title);
+        var importedStocks = await importedStocksResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+        Assert.Equal("M7 imported stock", Assert.Single(importedStocks!).GetProperty("title").GetString());
+
+        var fractionalPiecesRequest = await SendJsonAsync(HttpMethod.Post, "/api/stocks", newCompany.AccessToken, new
+        {
+            warehouseId,
+            categoryId = 8,
+            unit = "Pieces",
+            title = "Fractional pieces",
+            description = "Must reject fractional discrete quantities",
+            totalQuantity = 10,
+            minOrderQuantity = 1,
+            stepQuantity = 0.5m,
+            packagingType = "Box",
+            pricePerUnit = 1m,
+            currency = "EUR",
+            availableFrom = DateTimeOffset.UtcNow.AddDays(-1),
+            availableTo = DateTimeOffset.UtcNow.AddDays(30)
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, fractionalPiecesRequest.StatusCode);
+
+        var missingSeedAttributesRequest = await SendJsonAsync(HttpMethod.Post, "/api/stocks", newCompany.AccessToken, new
+        {
+            warehouseId,
+            categoryId = 9,
+            unit = "Kilograms",
+            title = "Seeds without technical attributes",
+            description = "Must reject missing category attributes",
+            totalQuantity = 10,
+            minOrderQuantity = 1,
+            stepQuantity = 0.5m,
+            packagingType = "Bag",
+            pricePerUnit = 1m,
+            currency = "EUR",
+            attributes = new { moisture = 10 },
+            availableFrom = DateTimeOffset.UtcNow.AddDays(-1),
+            availableTo = DateTimeOffset.UtcNow.AddDays(30)
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, missingSeedAttributesRequest.StatusCode);
+
+        var validSeedStockRequest = await SendJsonAsync(HttpMethod.Post, "/api/stocks", newCompany.AccessToken, new
+        {
+            warehouseId,
+            categoryId = 9,
+            unit = "Pieces",
+            title = "Validated seed stock",
+            description = "Has category technical attributes and whole quantities",
+            totalQuantity = 100,
+            minOrderQuantity = 10,
+            stepQuantity = 5,
+            packagingType = "Bag",
+            pricePerUnit = 2.5m,
+            currency = "EUR",
+            attributes = new { moisture = 10, germination_rate = 95 },
+            availableFrom = DateTimeOffset.UtcNow.AddDays(-1),
+            availableTo = DateTimeOffset.UtcNow.AddDays(30)
+        });
+        Assert.Equal(HttpStatusCode.Created, validSeedStockRequest.StatusCode);
+        var createdSeedStock = await validSeedStockRequest.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Pieces", createdSeedStock.GetProperty("unit").GetString());
+        Assert.Equal(100m, createdSeedStock.GetProperty("totalQuantity").GetDecimal());
     }
 
     public async Task DisposeAsync()
@@ -291,13 +355,14 @@ public sealed class MvpCompletionIntegrationTests : IAsyncLifetime
                 CategoryId = 1,
                 Title = "M7 imported stock",
                 Description = "Imported test stock",
-                TotalQuantityTons = 10m,
-                MinOrderQuantityTons = minOrderQuantity,
-                StepQuantityTons = 1m,
+                TotalQuantity = 10m,
+                MinOrderQuantity = minOrderQuantity,
+                StepQuantity = 1m,
+                Unit = "Tons",
                 PackagingType = "Bulk",
-                PricePerTon = 100m,
+                PricePerUnit = 100m,
                 Currency = "EUR",
-                AttributesJson = "{\"grade\":\"A\"}",
+                AttributesJson = "{\"steel_grade\":\"A\"}",
                 AvailableFrom = DateTime.UtcNow.AddDays(-1),
                 AvailableTo = DateTime.UtcNow.AddDays(30)
             }

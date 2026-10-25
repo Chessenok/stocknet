@@ -22,7 +22,7 @@ Represents both the platform account and the participant company. MVP identity i
 The authenticated identity and authorization subject is `Company.Id` (JWT `CompanyId` claim). Never accept a request-body CompanyId as proof of identity.
 
 ### Category
-Database-managed lookup table pre-seeded in the initial migration. It has an integer ID, unique `Name` and `Slug`, optional description, sort order, and an `IsActive` flag. Stock references one category; category deletion is restricted while stocks reference it.
+Database-managed lookup table pre-seeded in migrations. It has an integer ID, unique `Name` and `Slug`, optional description, sort order, an `IsActive` flag, optional self-reference `ParentId`, and JSONB `RequiredAttributeKeys`. Stock references one category; category deletion is restricted while stocks or children reference it. A stock's attributes must include all required keys configured on its selected category.
 
 ### Warehouse
 Relation: `Company (1) -> Warehouse (N)`
@@ -38,13 +38,15 @@ Relation: `Warehouse (1) -> Stock (N)`
 - `Id` (Guid, PK)
 - `WarehouseId` (Guid, FK)
 - `CategoryId` (int/Guid)
+- `Unit` (`Tons`, `Kilograms`, `Pieces`, `Units`, `CubicMeters`, `Liters`; persisted as the enum's string name)
 - `Title` (string)
 - `Description` (string)
-- `TotalQuantityTons` (decimal, 3 fractional digits)
-- `MinOrderQuantityTons` (decimal, 3 fractional digits)
-- `StepQuantityTons` (decimal, 3 fractional digits)
+- `TotalQuantity` (decimal, 3 fractional digits)
+- `MinOrderQuantity` (decimal, 3 fractional digits)
+- `StepQuantity` (decimal, 3 fractional digits)
+- `Unit` (`Tons`, `Kilograms`, `Pieces`, `Units`, `CubicMeters`, `Liters`; discrete units require whole quantities)
 - `PackagingType` (string / Enum)
-- `PricePerTon` (decimal)
+- `PricePerUnit` (decimal, positive)
 - `Currency` (string, e.g., "EUR", "RON")
 - `Attributes` (`JsonDocument?`, PostgreSQL JSONB for dynamic properties)
 - `AvailableFrom` (DateTime, UTC)

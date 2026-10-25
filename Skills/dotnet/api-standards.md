@@ -24,7 +24,7 @@ public async Task<ActionResult<IEnumerable<StockMapDto>>> GetStocksForMap([FromQ
             Title = s.Title,
             Lat = s.Warehouse.Location.Y,
             Lng = s.Warehouse.Location.X,
-            PricePerTon = s.PricePerTon,
+            PricePerUnit = s.PricePerUnit,
             Currency = s.Currency
         })
         .ToListAsync();

@@ -91,7 +91,15 @@ try
         .WithHeaders("Authorization", "Content-Type")
         .WithExposedHeaders("Location")));
     builder.Services.AddDbContext<StockNetDbContext>(options =>
-        options.UseNpgsql(connectionString, npgsqlOptions => npgsqlOptions.UseNetTopologySuite()));
+        options.UseNpgsql(connectionString, npgsqlOptions =>
+        {
+            npgsqlOptions.UseNetTopologySuite();
+            npgsqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorCodesToAdd: new[] { "42704", "53300", "08006", "40001" });
+            npgsqlOptions.CommandTimeout(60);
+        }));
     builder.Services.AddScoped<IPasswordHasher<Company>, PasswordHasher<Company>>();
     builder.Services.AddScoped<JwtTokenService>();
     builder.Services.AddScoped<IAuthService, AuthService>();

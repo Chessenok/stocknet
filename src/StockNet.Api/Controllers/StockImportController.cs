@@ -103,14 +103,37 @@ public sealed class StockImportController(
         var activeCategories = await dbContext.Categories
             .AsNoTracking()
             .Where(category => category.IsActive && categoryIds.Contains(category.Id))
-            .Select(category => category.Id)
-            .ToHashSetAsync(cancellationToken);
+            .ToDictionaryAsync(category => category.Id, cancellationToken);
 
         for (var index = 0; index < rows.Count; index++)
         {
-            if (!activeCategories.Contains(rows[index].CategoryId))
+            if (!activeCategories.TryGetValue(rows[index].CategoryId, out var category))
             {
                 AddImportError(errors, index + 2, nameof(StockImportRow.CategoryId), "CategoryId is missing or inactive.");
+                continue;
+            }
+
+            JsonElement? attributes = null;
+            var attributesJson = rows[index].AttributesJson;
+            if (!string.IsNullOrWhiteSpace(attributesJson))
+            {
+                try
+                {
+                    using var attributesDocument = JsonDocument.Parse(attributesJson);
+                    attributes = attributesDocument.RootElement.Clone();
+                }
+                catch (JsonException)
+                {
+                    // Structural workbook validation already reports invalid JSON for this row.
+                    continue;
+                }
+            }
+
+            var missingAttributes = StockAttributeValidator.GetMissingRequiredKeys(category, attributes);
+            foreach (var missingAttribute in missingAttributes)
+            {
+                AddImportError(errors, index + 2, nameof(StockImportRow.AttributesJson),
+                    $"The '{missingAttribute}' attribute is required for category '{category.Name}'.");
             }
         }
 
@@ -145,11 +168,12 @@ public sealed class StockImportController(
                     CategoryId = row.CategoryId,
                     Title = row.Title.Trim(),
                     Description = row.Description.Trim(),
-                    TotalQuantityTons = row.TotalQuantityTons!.Value,
-                    MinOrderQuantityTons = row.MinOrderQuantityTons!.Value,
-                    StepQuantityTons = row.StepQuantityTons!.Value,
+                    TotalQuantity = row.TotalQuantity!.Value,
+                    MinOrderQuantity = row.MinOrderQuantity!.Value,
+                    StepQuantity = row.StepQuantity!.Value,
+                    Unit = row.Unit!.Value,
                     PackagingType = row.PackagingType.Trim(),
-                    PricePerTon = row.PricePerTon!.Value,
+                    PricePerUnit = row.PricePerUnit!.Value,
                     Currency = row.Currency.Trim().ToUpperInvariant(),
                     Attributes = attributes,
                     AvailableFrom = AsUtc(row.AvailableFrom!.Value),
@@ -160,15 +184,29 @@ public sealed class StockImportController(
                 });
             }
 
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-            if (!await subscriptionGuard.CanPostStockAsync(companyId, cancellationToken))
+            var subscriptionExpired = false;
+            var strategy = dbContext.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
+                dbContext.ChangeTracker.Clear();
+
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+                if (!await subscriptionGuard.CanPostStockAsync(companyId, cancellationToken))
+                {
+                    subscriptionExpired = true;
+                    await transaction.RollbackAsync(cancellationToken);
+                    return;
+                }
+
+                dbContext.Stocks.AddRange(stockItems);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            });
+
+            if (subscriptionExpired)
             {
                 return SubscriptionRequired();
             }
-
-            dbContext.Stocks.AddRange(stockItems);
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
         }
         finally
         {

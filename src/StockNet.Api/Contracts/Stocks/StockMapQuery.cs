@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using StockNet.Api.Domain.Enums;
 
 namespace StockNet.Api.Contracts.Stocks;
 
@@ -15,6 +16,9 @@ public sealed class StockMapQuery : IValidatableObject
 
     [Range(1, int.MaxValue)]
     public int? CategoryId { get; init; }
+
+    [EnumDataType(typeof(UnitOfMeasure))]
+    public UnitOfMeasure? Unit { get; init; }
 
     [Range(typeof(decimal), "0", "99999999999999.9999", ParseLimitsInInvariantCulture = true)]
     public decimal? MinPrice { get; init; }

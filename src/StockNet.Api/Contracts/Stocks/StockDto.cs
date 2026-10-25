@@ -1,4 +1,5 @@
 using System.Text.Json;
+using StockNet.Api.Domain.Enums;
 
 namespace StockNet.Api.Contracts.Stocks;
 
@@ -9,11 +10,12 @@ public sealed record StockDto(
     int CategoryId,
     string Title,
     string Description,
-    decimal TotalQuantityTons,
-    decimal MinOrderQuantityTons,
-    decimal StepQuantityTons,
+    decimal TotalQuantity,
+    decimal MinOrderQuantity,
+    decimal StepQuantity,
+    UnitOfMeasure Unit,
     string PackagingType,
-    decimal PricePerTon,
+    decimal PricePerUnit,
     string Currency,
     JsonElement? Attributes,
     DateTime AvailableFrom,

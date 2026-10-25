@@ -29,8 +29,10 @@ public sealed class DevelopmentSeeder(
                     Name = categorySeed.Name,
                     Slug = categorySeed.Slug,
                     Description = categorySeed.Description,
+                    ParentId = categorySeed.ParentId,
                     SortOrder = categorySeed.SortOrder,
-                    IsActive = categorySeed.IsActive
+                    IsActive = categorySeed.IsActive,
+                    RequiredAttributeKeys = categorySeed.RequiredAttributeKeys.ToArray()
                 });
                 categoriesAdded++;
             }

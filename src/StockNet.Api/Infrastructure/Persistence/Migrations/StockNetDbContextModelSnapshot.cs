@@ -47,6 +47,15 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<int?>("ParentId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RequiredAttributeKeys")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -59,6 +68,8 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Name")
                         .IsUnique();
+
+                    b.HasIndex("ParentId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
@@ -79,6 +90,7 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                             Description = "Ferrous and non-ferrous raw materials",
                             IsActive = true,
                             Name = "Metals",
+                            RequiredAttributeKeys = "[\"steel_grade\"]",
                             Slug = "metals",
                             SortOrder = 10
                         },
@@ -88,6 +100,7 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                             Description = "Plastic resins and recycled polymers",
                             IsActive = true,
                             Name = "Plastics",
+                            RequiredAttributeKeys = "[]",
                             Slug = "plastics",
                             SortOrder = 20
                         },
@@ -97,6 +110,7 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                             Description = "Timber, lumber, and wood-based materials",
                             IsActive = true,
                             Name = "Wood",
+                            RequiredAttributeKeys = "[]",
                             Slug = "wood",
                             SortOrder = 30
                         },
@@ -106,6 +120,7 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                             Description = "Paper, pulp, and cardboard materials",
                             IsActive = true,
                             Name = "Paper",
+                            RequiredAttributeKeys = "[]",
                             Slug = "paper",
                             SortOrder = 40
                         },
@@ -115,6 +130,7 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                             Description = "Aggregates and other construction raw materials",
                             IsActive = true,
                             Name = "Construction Materials",
+                            RequiredAttributeKeys = "[]",
                             Slug = "construction-materials",
                             SortOrder = 50
                         },
@@ -124,6 +140,7 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                             Description = "Industrial and agricultural chemicals",
                             IsActive = true,
                             Name = "Chemicals",
+                            RequiredAttributeKeys = "[]",
                             Slug = "chemicals",
                             SortOrder = 60
                         },
@@ -133,6 +150,7 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                             Description = "Agricultural raw materials and by-products",
                             IsActive = true,
                             Name = "Agricultural Materials",
+                            RequiredAttributeKeys = "[]",
                             Slug = "agricultural-materials",
                             SortOrder = 70
                         },
@@ -142,8 +160,31 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                             Description = "Other raw materials",
                             IsActive = true,
                             Name = "Other",
+                            RequiredAttributeKeys = "[]",
                             Slug = "other",
                             SortOrder = 80
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Description = "Seeds and planting material",
+                            IsActive = true,
+                            Name = "Seeds",
+                            ParentId = 7,
+                            RequiredAttributeKeys = "[\"moisture\",\"germination_rate\"]",
+                            Slug = "seeds",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Description = "Equipment and discrete industrial goods",
+                            IsActive = true,
+                            Name = "Industrial Equipment",
+                            ParentId = 8,
+                            RequiredAttributeKeys = "[]",
+                            Slug = "industrial-equipment",
+                            SortOrder = 10
                         });
                 });
 
@@ -357,7 +398,7 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
-                    b.Property<decimal>("MinOrderQuantityTons")
+                    b.Property<decimal>("MinOrderQuantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
 
@@ -366,11 +407,11 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<decimal>("PricePerTon")
+                    b.Property<decimal>("PricePerUnit")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
 
-                    b.Property<decimal>("StepQuantityTons")
+                    b.Property<decimal>("StepQuantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
 
@@ -379,9 +420,16 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<decimal>("TotalQuantityTons")
+                    b.Property<decimal>("TotalQuantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Tons");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -403,13 +451,17 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_Stocks_Currency_Length", "length(\"Currency\") = 3");
 
-                            t.HasCheckConstraint("CK_Stocks_MinOrderQuantityTons_Valid", "\"MinOrderQuantityTons\" > 0 AND \"MinOrderQuantityTons\" <= \"TotalQuantityTons\"");
+                            t.HasCheckConstraint("CK_Stocks_DiscreteUnits_IntegralQuantities", "\"Unit\" NOT IN ('Pieces', 'Units') OR (\"TotalQuantity\" = trunc(\"TotalQuantity\") AND \"MinOrderQuantity\" = trunc(\"MinOrderQuantity\") AND \"StepQuantity\" = trunc(\"StepQuantity\") AND \"StepQuantity\" >= 1)");
 
-                            t.HasCheckConstraint("CK_Stocks_PricePerTon_NonNegative", "\"PricePerTon\" >= 0");
+                            t.HasCheckConstraint("CK_Stocks_MinOrderQuantity_Valid", "\"MinOrderQuantity\" > 0 AND \"MinOrderQuantity\" <= \"TotalQuantity\"");
 
-                            t.HasCheckConstraint("CK_Stocks_StepQuantityTons_Positive", "\"StepQuantityTons\" > 0");
+                            t.HasCheckConstraint("CK_Stocks_PricePerUnit_Positive", "\"PricePerUnit\" > 0");
 
-                            t.HasCheckConstraint("CK_Stocks_TotalQuantityTons_Positive", "\"TotalQuantityTons\" > 0");
+                            t.HasCheckConstraint("CK_Stocks_StepQuantity_Positive", "\"StepQuantity\" > 0");
+
+                            t.HasCheckConstraint("CK_Stocks_TotalQuantity_Positive", "\"TotalQuantity\" > 0");
+
+                            t.HasCheckConstraint("CK_Stocks_Unit_Allowed", "\"Unit\" IN ('Tons', 'Kilograms', 'Pieces', 'Units', 'CubicMeters', 'Liters')");
                         });
                 });
 
@@ -453,6 +505,16 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Warehouses_Name_NotEmpty", "length(trim(\"Name\")) > 0");
                         });
+                });
+
+            modelBuilder.Entity("StockNet.Api.Domain.Entities.Category", b =>
+                {
+                    b.HasOne("StockNet.Api.Domain.Entities.Category", "Parent")
+                        .WithMany("Children")
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Parent");
                 });
 
             modelBuilder.Entity("StockNet.Api.Domain.Entities.Message", b =>
@@ -533,6 +595,8 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("StockNet.Api.Domain.Entities.Category", b =>
                 {
+                    b.Navigation("Children");
+
                     b.Navigation("Stocks");
                 });
 

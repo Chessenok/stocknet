@@ -1,4 +1,5 @@
 using System.Text.Json;
+using StockNet.Api.Domain.Enums;
 
 namespace StockNet.Api.Domain.Entities;
 
@@ -9,11 +10,12 @@ public sealed class Stock
     public int CategoryId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public decimal TotalQuantityTons { get; set; }
-    public decimal MinOrderQuantityTons { get; set; }
-    public decimal StepQuantityTons { get; set; }
+    public decimal TotalQuantity { get; set; }
+    public decimal MinOrderQuantity { get; set; }
+    public decimal StepQuantity { get; set; }
+    public UnitOfMeasure Unit { get; set; } = UnitOfMeasure.Tons;
     public string PackagingType { get; set; } = string.Empty;
-    public decimal PricePerTon { get; set; }
+    public decimal PricePerUnit { get; set; }
     public string Currency { get; set; } = "EUR";
     public JsonDocument? Attributes { get; set; }
     public DateTime AvailableFrom { get; set; }

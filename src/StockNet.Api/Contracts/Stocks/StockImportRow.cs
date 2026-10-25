@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
+using StockNet.Api.Domain.Enums;
 
 namespace StockNet.Api.Contracts.Stocks;
 
@@ -15,19 +16,22 @@ public sealed class StockImportRow : IValidatableObject
     public string Description { get; set; } = string.Empty;
 
     [Required, Range(typeof(decimal), "0.001", "999999999999999.999", ParseLimitsInInvariantCulture = true)]
-    public decimal? TotalQuantityTons { get; set; }
+    public decimal? TotalQuantity { get; set; }
 
     [Required, Range(typeof(decimal), "0.001", "999999999999999.999", ParseLimitsInInvariantCulture = true)]
-    public decimal? MinOrderQuantityTons { get; set; }
+    public decimal? MinOrderQuantity { get; set; }
 
     [Required, Range(typeof(decimal), "0.001", "999999999999999.999", ParseLimitsInInvariantCulture = true)]
-    public decimal? StepQuantityTons { get; set; }
+    public decimal? StepQuantity { get; set; }
+
+    [Required, EnumDataType(typeof(UnitOfMeasure))]
+    public UnitOfMeasure? Unit { get; set; }
 
     [Required, StringLength(64)]
     public string PackagingType { get; set; } = string.Empty;
 
-    [Required, Range(typeof(decimal), "0", "99999999999999.9999", ParseLimitsInInvariantCulture = true)]
-    public decimal? PricePerTon { get; set; }
+    [Required, Range(typeof(decimal), "0.0001", "99999999999999.9999", ParseLimitsInInvariantCulture = true)]
+    public decimal? PricePerUnit { get; set; }
 
     [Required, RegularExpression("^[A-Za-z]{3}$")]
     public string Currency { get; set; } = string.Empty;
@@ -43,29 +47,52 @@ public sealed class StockImportRow : IValidatableObject
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (TotalQuantityTons is { } total && decimal.Round(total, 3) != total)
+        if (Unit is null || !Enum.IsDefined(Unit.Value))
         {
-            yield return new ValidationResult("TotalQuantityTons supports at most three decimal places.", [nameof(TotalQuantityTons)]);
+            yield return new ValidationResult("Unit must be a supported unit of measure.", [nameof(Unit)]);
         }
 
-        if (MinOrderQuantityTons is { } minimum && decimal.Round(minimum, 3) != minimum)
+        if (TotalQuantity is { } total && decimal.Round(total, 3) != total)
         {
-            yield return new ValidationResult("MinOrderQuantityTons supports at most three decimal places.", [nameof(MinOrderQuantityTons)]);
+            yield return new ValidationResult("TotalQuantity supports at most three decimal places.", [nameof(TotalQuantity)]);
         }
 
-        if (StepQuantityTons is { } step && decimal.Round(step, 3) != step)
+        if (MinOrderQuantity is { } minimum && decimal.Round(minimum, 3) != minimum)
         {
-            yield return new ValidationResult("StepQuantityTons supports at most three decimal places.", [nameof(StepQuantityTons)]);
+            yield return new ValidationResult("MinOrderQuantity supports at most three decimal places.", [nameof(MinOrderQuantity)]);
         }
 
-        if (PricePerTon is { } price && decimal.Round(price, 4) != price)
+        if (StepQuantity is { } step && decimal.Round(step, 3) != step)
         {
-            yield return new ValidationResult("PricePerTon supports at most four decimal places.", [nameof(PricePerTon)]);
+            yield return new ValidationResult("StepQuantity supports at most three decimal places.", [nameof(StepQuantity)]);
         }
 
-        if (MinOrderQuantityTons is { } minOrder && TotalQuantityTons is { } totalQuantity && minOrder > totalQuantity)
+        if (PricePerUnit is { } price && decimal.Round(price, 4) != price)
         {
-            yield return new ValidationResult("MinOrderQuantityTons cannot exceed TotalQuantityTons.", [nameof(MinOrderQuantityTons)]);
+            yield return new ValidationResult("PricePerUnit supports at most four decimal places.", [nameof(PricePerUnit)]);
+        }
+
+        if (MinOrderQuantity is { } minOrder && TotalQuantity is { } totalQuantity && minOrder > totalQuantity)
+        {
+            yield return new ValidationResult("MinOrderQuantity cannot exceed TotalQuantity.", [nameof(MinOrderQuantity)]);
+        }
+
+        if (Unit is UnitOfMeasure.Pieces or UnitOfMeasure.Units)
+        {
+            if (TotalQuantity is { } discreteTotal && decimal.Truncate(discreteTotal) != discreteTotal)
+            {
+                yield return new ValidationResult("TotalQuantity must be a whole number for Pieces and Units.", [nameof(TotalQuantity)]);
+            }
+
+            if (MinOrderQuantity is { } discreteMinimum && decimal.Truncate(discreteMinimum) != discreteMinimum)
+            {
+                yield return new ValidationResult("MinOrderQuantity must be a whole number for Pieces and Units.", [nameof(MinOrderQuantity)]);
+            }
+
+            if (StepQuantity is { } discreteStep && (discreteStep < 1 || decimal.Truncate(discreteStep) != discreteStep))
+            {
+                yield return new ValidationResult("StepQuantity must be a whole number of at least 1 for Pieces and Units.", [nameof(StepQuantity)]);
+            }
         }
 
         if (AvailableFrom is { } from && AvailableTo is { } to && to < from)
