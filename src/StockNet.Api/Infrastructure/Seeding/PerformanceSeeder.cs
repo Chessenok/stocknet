@@ -101,7 +101,7 @@ public sealed class PerformanceSeeder(StockNetDbContext dbContext, ILogger<Perfo
                     Currency = "EUR",
                     Attributes = JsonDocument.Parse(isEquipment
                         ? "{\"equipment_type\":\"industrial\",\"source\":\"performance-seeder\"}"
-                        : "{\"steel_grade\":\"A\",\"source\":\"performance-seeder\"}"),
+                        : "{\"steel_grade\":\"a36\",\"source\":\"performance-seeder\"}"),
                     AvailableFrom = DateTime.UtcNow.AddDays(-1),
                     AvailableTo = DateTime.UtcNow.AddDays(30),
                     IsActive = true,

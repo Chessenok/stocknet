@@ -15,6 +15,7 @@ using StockNet.Api.Domain.Entities;
 using StockNet.Api.Domain.Enums;
 using StockNet.Api.Infrastructure.Persistence;
 using StockNet.Api.Infrastructure.Seeding;
+using StockNet.Api.Services;
 using Xunit;
 
 namespace StockNet.Api.IntegrationTests;
@@ -77,9 +78,21 @@ public sealed class MvpCompletionIntegrationTests : IAsyncLifetime
         Assert.Equal(10, await dbContext.Categories.CountAsync());
         var seedsCategory = await dbContext.Categories.SingleAsync(category => category.Slug == "seeds");
         Assert.Equal(7, seedsCategory.ParentId);
-        Assert.Equal(new[] { "moisture", "germination_rate" }, seedsCategory.RequiredAttributeKeys);
+        Assert.Equal(new[] { "moisture", "germination_rate" }, seedsCategory.AttributeRules.Select(rule => rule.Key).ToArray());
+        Assert.All(seedsCategory.AttributeRules, rule => Assert.True(StockAttributeValidator.IsTechnicalCode(rule.Key)));
         var equipmentCategory = await dbContext.Categories.SingleAsync(category => category.Slug == "industrial-equipment");
         Assert.Equal(8, equipmentCategory.ParentId);
+
+        using var publicCategoriesResponse = await client!.GetAsync("/api/categories");
+        Assert.Equal(HttpStatusCode.OK, publicCategoriesResponse.StatusCode);
+        var publicCategories = await publicCategoriesResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+        var publicMetals = Assert.Single(publicCategories!, category => category.GetProperty("slug").GetString() == "metals");
+        var publicMetalRule = Assert.Single(publicMetals.GetProperty("attributeRules").EnumerateArray());
+        Assert.Equal("steel_grade", publicMetalRule.GetProperty("key").GetString());
+        Assert.Equal("String", publicMetalRule.GetProperty("type").GetString());
+        Assert.Equal(new[] { "a36", "s235", "s355" }, publicMetalRule.GetProperty("allowedValues").EnumerateArray().Select(value => value.GetString()).ToArray());
+        using var publicCategoryResponse = await client.GetAsync("/api/categories/9");
+        Assert.Equal(HttpStatusCode.OK, publicCategoryResponse.StatusCode);
 
         var adminSession = await LoginAsync(adminEmail, "M7-seeded-admin-password-123!");
         var supplierSession = await LoginAsync(supplierEmail, "M7-seeded-supplier-password-123!");
@@ -182,6 +195,12 @@ public sealed class MvpCompletionIntegrationTests : IAsyncLifetime
         var importResult = await importResponse.Content.ReadFromJsonAsync<StockImportResultDto>();
         Assert.Equal(1, importResult!.ImportedCount);
 
+        using var legacyImportResponse = await SendImportAsync(
+            newCompany.AccessToken,
+            warehouseId,
+            CreateWorkbook(validRow: true, includeUnit: false));
+        Assert.Equal(HttpStatusCode.Created, legacyImportResponse.StatusCode);
+
         using var invalidWorkbookImport = await SendImportAsync(newCompany.AccessToken, warehouseId, CreateWorkbook(validRow: false));
         Assert.Equal(HttpStatusCode.BadRequest, invalidWorkbookImport.StatusCode);
 
@@ -190,7 +209,9 @@ public sealed class MvpCompletionIntegrationTests : IAsyncLifetime
             "/api/stocks/my",
             newCompany.AccessToken);
         var importedStocks = await importedStocksResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
-        Assert.Equal("M7 imported stock", Assert.Single(importedStocks!).GetProperty("title").GetString());
+        Assert.Contains(importedStocks!, stock => stock.GetProperty("title").GetString() == "M7 imported stock");
+        var legacyStock = Assert.Single(importedStocks!, stock => stock.GetProperty("title").GetString() == "M7 legacy import stock");
+        Assert.Equal("Tons", legacyStock.GetProperty("unit").GetString());
 
         var fractionalPiecesRequest = await SendJsonAsync(HttpMethod.Post, "/api/stocks", newCompany.AccessToken, new
         {
@@ -209,6 +230,25 @@ public sealed class MvpCompletionIntegrationTests : IAsyncLifetime
             availableTo = DateTimeOffset.UtcNow.AddDays(30)
         });
         Assert.Equal(HttpStatusCode.BadRequest, fractionalPiecesRequest.StatusCode);
+
+        var invalidAllowedValueRequest = await SendJsonAsync(HttpMethod.Post, "/api/stocks", newCompany.AccessToken, new
+        {
+            warehouseId,
+            categoryId = 1,
+            unit = "Tons",
+            title = "Invalid steel grade",
+            description = "Allowed values are technical grade codes",
+            totalQuantity = 10,
+            minOrderQuantity = 1,
+            stepQuantity = 1,
+            packagingType = "Bulk",
+            pricePerUnit = 1m,
+            currency = "EUR",
+            attributes = new { steel_grade = "not_a_grade" },
+            availableFrom = DateTimeOffset.UtcNow.AddDays(-1),
+            availableTo = DateTimeOffset.UtcNow.AddDays(30)
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, invalidAllowedValueRequest.StatusCode);
 
         var missingSeedAttributesRequest = await SendJsonAsync(HttpMethod.Post, "/api/stocks", newCompany.AccessToken, new
         {
@@ -344,29 +384,31 @@ public sealed class MvpCompletionIntegrationTests : IAsyncLifetime
         return await client!.SendAsync(request);
     }
 
-    private static byte[] CreateWorkbook(bool validRow)
+    private static byte[] CreateWorkbook(bool validRow, bool includeUnit = true)
     {
         using var stream = new MemoryStream();
         var minOrderQuantity = validRow ? 2m : 20m;
-        MiniExcel.SaveAs(stream, new[]
+        var row = new Dictionary<string, object?>
         {
-            new
-            {
-                CategoryId = 1,
-                Title = "M7 imported stock",
-                Description = "Imported test stock",
-                TotalQuantity = 10m,
-                MinOrderQuantity = minOrderQuantity,
-                StepQuantity = 1m,
-                Unit = "Tons",
-                PackagingType = "Bulk",
-                PricePerUnit = 100m,
-                Currency = "EUR",
-                AttributesJson = "{\"steel_grade\":\"A\"}",
-                AvailableFrom = DateTime.UtcNow.AddDays(-1),
-                AvailableTo = DateTime.UtcNow.AddDays(30)
-            }
-        });
+            ["CategoryId"] = 1,
+            ["Title"] = includeUnit ? "M7 imported stock" : "M7 legacy import stock",
+            ["Description"] = "Imported test stock",
+            ["TotalQuantity"] = 10m,
+            ["MinOrderQuantity"] = minOrderQuantity,
+            ["StepQuantity"] = 1m,
+            ["PackagingType"] = "Bulk",
+            ["PricePerUnit"] = 100m,
+            ["Currency"] = "EUR",
+            ["AttributesJson"] = "{\"steel_grade\":\"a36\"}",
+            ["AvailableFrom"] = DateTime.UtcNow.AddDays(-1),
+            ["AvailableTo"] = DateTime.UtcNow.AddDays(30)
+        };
+        if (includeUnit)
+        {
+            row["Unit"] = "Tons";
+        }
+
+        MiniExcel.SaveAs(stream, new[] { row });
 
         return stream.ToArray();
     }

@@ -9,7 +9,7 @@ public sealed class Category
     public string? Description { get; set; }
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
-    public string[] RequiredAttributeKeys { get; set; } = [];
+    public CategoryAttributeRule[] AttributeRules { get; set; } = [];
 
     public Category? Parent { get; set; }
     public ICollection<Category> Children { get; set; } = new List<Category>();

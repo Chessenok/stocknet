@@ -24,8 +24,8 @@ public sealed class StockImportRow : IValidatableObject
     [Required, Range(typeof(decimal), "0.001", "999999999999999.999", ParseLimitsInInvariantCulture = true)]
     public decimal? StepQuantity { get; set; }
 
-    [Required, EnumDataType(typeof(UnitOfMeasure))]
-    public UnitOfMeasure? Unit { get; set; }
+    [EnumDataType(typeof(UnitOfMeasure))]
+    public UnitOfMeasure? Unit { get; set; } = UnitOfMeasure.Tons;
 
     [Required, StringLength(64)]
     public string PackagingType { get; set; } = string.Empty;
@@ -47,7 +47,7 @@ public sealed class StockImportRow : IValidatableObject
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (Unit is null || !Enum.IsDefined(Unit.Value))
+        if (Unit is { } unit && !Enum.IsDefined(unit))
         {
             yield return new ValidationResult("Unit must be a supported unit of measure.", [nameof(Unit)]);
         }

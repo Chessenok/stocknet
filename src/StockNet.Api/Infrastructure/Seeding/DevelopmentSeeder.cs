@@ -32,7 +32,9 @@ public sealed class DevelopmentSeeder(
                     ParentId = categorySeed.ParentId,
                     SortOrder = categorySeed.SortOrder,
                     IsActive = categorySeed.IsActive,
-                    RequiredAttributeKeys = categorySeed.RequiredAttributeKeys.ToArray()
+                    AttributeRules = categorySeed.AttributeRules
+                        .Select(rule => rule with { AllowedValues = rule.AllowedValues.ToArray() })
+                        .ToArray()
                 });
                 categoriesAdded++;
             }

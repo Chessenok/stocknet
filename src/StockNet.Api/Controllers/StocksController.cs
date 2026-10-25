@@ -25,6 +25,34 @@ public sealed class StocksController(
         [FromQuery] StockMapQuery query,
         CancellationToken cancellationToken)
     {
+        JsonDocument? attributeFilter = null;
+        if (!string.IsNullOrWhiteSpace(query.AttributeFilters))
+        {
+            try
+            {
+                attributeFilter = JsonDocument.Parse(query.AttributeFilters);
+            }
+            catch (JsonException)
+            {
+                return BadRequest(new ProblemDetails
+                {
+                    Status = StatusCodes.Status400BadRequest,
+                    Title = "AttributeFilters must be a valid JSON object."
+                });
+            }
+
+            if (attributeFilter.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                attributeFilter.Dispose();
+                return BadRequest(new ProblemDetails
+                {
+                    Status = StatusCodes.Status400BadRequest,
+                    Title = "AttributeFilters must be a valid JSON object."
+                });
+            }
+        }
+
+        using var attributeFilterLifetime = attributeFilter;
         var center = new Point(query.Longitude!.Value, query.Latitude!.Value) { SRID = 4326 };
         var radiusMeters = query.Radius!.Value;
         var now = DateTime.UtcNow;
@@ -55,6 +83,12 @@ public sealed class StocksController(
         if (query.Unit is { } unit)
         {
             stocks = stocks.Where(stock => stock.Unit == unit);
+        }
+
+        if (attributeFilter is not null)
+        {
+            stocks = stocks.Where(stock => stock.Attributes != null
+                && EF.Functions.JsonContains(stock.Attributes, attributeFilter));
         }
 
         var rows = await stocks
@@ -101,10 +135,10 @@ public sealed class StocksController(
             return InvalidCategory();
         }
 
-        var missingAttributes = StockAttributeValidator.GetMissingRequiredKeys(category, request.Attributes);
-        if (missingAttributes.Count > 0)
+        var attributeErrors = StockAttributeValidator.Validate(category, request.Attributes);
+        if (attributeErrors.Count > 0)
         {
-            return InvalidAttributes(missingAttributes);
+            return InvalidAttributes(attributeErrors);
         }
 
         using var attributes = ParseAttributes(request.Attributes);
@@ -168,10 +202,10 @@ public sealed class StocksController(
             return InvalidCategory();
         }
 
-        var missingAttributes = StockAttributeValidator.GetMissingRequiredKeys(category, request.Attributes);
-        if (missingAttributes.Count > 0)
+        var attributeErrors = StockAttributeValidator.Validate(category, request.Attributes);
+        if (attributeErrors.Count > 0)
         {
-            return InvalidAttributes(missingAttributes);
+            return InvalidAttributes(attributeErrors);
         }
 
         using var previousAttributes = stock.Attributes;
@@ -299,10 +333,9 @@ public sealed class StocksController(
         Title = "The selected category does not exist or is inactive."
     });
 
-    private BadRequestObjectResult InvalidAttributes(IReadOnlyList<string> missingAttributes) => BadRequest(
+    private BadRequestObjectResult InvalidAttributes(IReadOnlyList<string> attributeErrors) => BadRequest(
         new ValidationProblemDetails(new Dictionary<string, string[]>
         {
-            [nameof(StockContentRequest.Attributes)] =
-            [.. missingAttributes.Select(key => $"The '{key}' attribute is required for this category.")]
+            [nameof(StockContentRequest.Attributes)] = attributeErrors.ToArray()
         }));
 }

@@ -1,7 +1,7 @@
 # .NET 10 API Standards & Error Handling
 
 ## 1. Endpoint Exposure and Access
-- The only unauthenticated business API is active-stock map/search (for example `GET /api/stocks/map`) and its supported filters.
+- Public business APIs are active-stock map/search (`GET /api/stocks/map`) and category taxonomy/schema reads (`GET /api/categories`, `GET /api/categories/{id}`).
 - Registration and login (`POST /api/auth/register`, `POST /api/auth/login`) are public anonymous identity-infrastructure endpoints.
 - All other business endpoints require authentication, including stock mutations, company-specific data, and message threads/messages.
 - Never add public company-list or public company-detail endpoints. An authenticated `/api/companies/me` endpoint is appropriate for the caller's own company profile.

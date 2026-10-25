@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -8,6 +9,11 @@ namespace StockNet.Api.Infrastructure.Persistence.Configurations;
 
 public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
 {
+    private static readonly JsonSerializerOptions AttributeRulesJsonOptions = new()
+    {
+        Converters = { new JsonStringEnumConverter() }
+    };
+
     public void Configure(EntityTypeBuilder<Category> builder)
     {
         builder.ToTable("Categories", table =>
@@ -22,16 +28,19 @@ public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(category => category.Slug).HasMaxLength(100).IsRequired();
         builder.Property(category => category.Description).HasMaxLength(500);
         builder.Property(category => category.IsActive).HasDefaultValue(true);
-        var requiredAttributeKeys = builder.Property(category => category.RequiredAttributeKeys)
+        var attributeRules = builder.Property(category => category.AttributeRules)
             .HasColumnType("jsonb")
             .HasConversion(
-                keys => JsonSerializer.Serialize(keys, (JsonSerializerOptions?)null),
-                json => JsonSerializer.Deserialize<string[]>(json, (JsonSerializerOptions?)null) ?? Array.Empty<string>())
+                rules => JsonSerializer.Serialize(rules, AttributeRulesJsonOptions),
+                json => JsonSerializer.Deserialize<CategoryAttributeRule[]>(json, AttributeRulesJsonOptions) ?? Array.Empty<CategoryAttributeRule>())
             .HasDefaultValueSql("'[]'::jsonb");
-        requiredAttributeKeys.Metadata.SetValueComparer(new ValueComparer<string[]>(
-            (left, right) => left != null && right != null && left.SequenceEqual(right),
-            value => value.Aggregate(0, (hash, key) => HashCode.Combine(hash, key.GetHashCode(StringComparison.Ordinal))),
-            value => value.ToArray()));
+        attributeRules.Metadata.SetValueComparer(new ValueComparer<CategoryAttributeRule[]>(
+            (left, right) => JsonSerializer.Serialize(left, AttributeRulesJsonOptions)
+                == JsonSerializer.Serialize(right, AttributeRulesJsonOptions),
+            value => JsonSerializer.Serialize(value, AttributeRulesJsonOptions).GetHashCode(StringComparison.Ordinal),
+            value => JsonSerializer.Deserialize<CategoryAttributeRule[]>(
+                JsonSerializer.Serialize(value, AttributeRulesJsonOptions),
+                AttributeRulesJsonOptions) ?? Array.Empty<CategoryAttributeRule>()));
 
         builder.HasIndex(category => category.Name).IsUnique();
         builder.HasIndex(category => category.Slug).IsUnique();

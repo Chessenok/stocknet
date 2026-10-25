@@ -166,6 +166,10 @@ try
         .AddCheck<PostgresHealthCheck>("postgres");
 
     builder.Services.AddOpenApi();
+    if (builder.Environment.IsDevelopment())
+    {
+        builder.Services.AddSwaggerGen();
+    }
 
     var app = builder.Build();
 
@@ -174,12 +178,21 @@ try
     app.UseSerilogRequestLogging();
     app.UseHttpsRedirection();
     app.UseCors("Frontend");
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI(options =>
+        {
+            options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockNet API v1");
+            options.RoutePrefix = "swagger";
+        });
+    }
     app.UseAuthentication();
     app.UseAuthorization();
 
     if (app.Environment.IsDevelopment())
     {
-        app.MapOpenApi().RequireAuthorization();
+        app.MapOpenApi().AllowAnonymous();
     }
 
     app.MapHealthChecks("/health", new HealthCheckOptions
@@ -202,7 +215,6 @@ try
         await using var scope = app.Services.CreateAsyncScope();
         var seeder = scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>();
         await seeder.SeedAsync(app.Lifetime.ApplicationStopping);
-
         if (app.Configuration.GetValue<bool>("Seed:PerformanceData"))
         {
             var performanceSeeder = scope.ServiceProvider.GetRequiredService<PerformanceSeeder>();

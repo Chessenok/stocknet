@@ -22,7 +22,7 @@ Represents both the platform account and the participant company. MVP identity i
 The authenticated identity and authorization subject is `Company.Id` (JWT `CompanyId` claim). Never accept a request-body CompanyId as proof of identity.
 
 ### Category
-Database-managed lookup table pre-seeded in migrations. It has an integer ID, unique `Name` and `Slug`, optional description, sort order, an `IsActive` flag, optional self-reference `ParentId`, and JSONB `RequiredAttributeKeys`. Stock references one category; category deletion is restricted while stocks or children reference it. A stock's attributes must include all required keys configured on its selected category.
+Database-managed lookup table pre-seeded in migrations. It has an integer ID, unique `Name` and `Slug`, optional description, sort order, an `IsActive` flag, optional self-reference `ParentId`, and JSONB `AttributeRules` (key, data type, required flag, optional number bounds, and allowed string codes). Stock references one category; category deletion is restricted while stocks or children reference it. Keys and allowed values are strict lowercase technical codes; localized display labels belong to the frontend. Public `GET /api/categories` and `GET /api/categories/{id}` expose these rules for dynamic forms and filters.
 
 ### Warehouse
 Relation: `Company (1) -> Warehouse (N)`

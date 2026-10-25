@@ -78,11 +78,13 @@ public sealed class StockMapIntegrationTests : IAsyncLifetime
         };
 
         var now = DateTime.UtcNow;
-        using var attributes = JsonDocument.Parse("{\"grade\":\"A\"}");
+        using var attributes = JsonDocument.Parse("{\"grade\":\"A\",\"steel_grade\":\"a36\"}");
+        using var otherGradeAttributes = JsonDocument.Parse("{\"steel_grade\":\"s235\"}");
         dbContext.Companies.Add(company);
         dbContext.Warehouses.AddRange(nearbyWarehouse, distantWarehouse);
         dbContext.Stocks.AddRange(
             NewStock(nearbyWarehouseId, 1, "Nearby active stock", 100m, now.AddHours(-1), now.AddHours(1), true, attributes),
+            NewStock(nearbyWarehouseId, 1, "Nearby different steel grade", 100m, now.AddHours(-1), now.AddHours(1), true, otherGradeAttributes),
             NewStock(nearbyWarehouseId, 1, "Nearby inactive stock", 100m, now.AddHours(-1), now.AddHours(1), false, attributes),
             NewStock(nearbyWarehouseId, 1, "Nearby expired stock", 100m, now.AddDays(-2), now.AddDays(-1), true, attributes),
             NewStock(distantWarehouseId, 1, "Distant active stock", 100m, now.AddHours(-1), now.AddHours(1), true, attributes),
@@ -103,7 +105,8 @@ public sealed class StockMapIntegrationTests : IAsyncLifetime
             response.StatusCode == HttpStatusCode.OK,
             $"Expected map search success; received {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
         var stocks = await response.Content.ReadFromJsonAsync<List<JsonElement>>();
-        var stock = Assert.Single(stocks!);
+        Assert.Equal(2, stocks!.Count);
+        var stock = Assert.Single(stocks, item => item.GetProperty("title").GetString() == "Nearby active stock");
 
         Assert.Equal("Nearby active stock", stock.GetProperty("title").GetString());
         Assert.Equal("Metals", stock.GetProperty("category").GetString());
@@ -113,6 +116,12 @@ public sealed class StockMapIntegrationTests : IAsyncLifetime
         Assert.Equal("A", stock.GetProperty("attributes").GetProperty("grade").GetString());
         Assert.False(stock.TryGetProperty("companyId", out _));
         Assert.False(stock.TryGetProperty("warehouseId", out _));
+
+        var matchingAttributes = Uri.EscapeDataString("{\"steel_grade\":\"a36\"}");
+        var filteredResponse = await client.GetAsync($"{mapPath}&attributeFilters={matchingAttributes}");
+        Assert.Equal(HttpStatusCode.OK, filteredResponse.StatusCode);
+        var filteredStocks = await filteredResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+        Assert.Equal("Nearby active stock", Assert.Single(filteredStocks!).GetProperty("title").GetString());
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/stocks/my")).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/stocks/map?latitude=91&longitude=0&radius=10")).StatusCode);
@@ -127,6 +136,12 @@ public sealed class StockMapIntegrationTests : IAsyncLifetime
             .Where(item => item.Warehouse.Location.IsWithinDistance(center, 5000))
             .ToQueryString();
         Assert.Contains("ST_DWithin", generatedSql, StringComparison.OrdinalIgnoreCase);
+        using var jsonFilter = JsonDocument.Parse("{\"steel_grade\":\"a36\"}");
+        var jsonFilterSql = dbContext.Stocks
+            .AsNoTracking()
+            .Where(item => item.Attributes != null && EF.Functions.JsonContains(item.Attributes, jsonFilter))
+            .ToQueryString();
+        Assert.Contains(" @> ", jsonFilterSql, StringComparison.Ordinal);
 
         await dbContext.Database.OpenConnectionAsync();
         var connection = (NpgsqlConnection)dbContext.Database.GetDbConnection();
@@ -156,6 +171,16 @@ public sealed class StockMapIntegrationTests : IAsyncLifetime
         }
 
         Assert.Contains("IX_Warehouses_Location", string.Join(Environment.NewLine, planLines), StringComparison.OrdinalIgnoreCase);
+
+        const string jsonbExplainSql = "EXPLAIN (COSTS OFF) SELECT \"Id\" FROM \"Stocks\" WHERE \"Attributes\" @> '{\"steel_grade\":\"a36\"}'::jsonb";
+        var jsonbPlanLines = await ReadPlanAsync(connection, transaction, jsonbExplainSql);
+        Assert.Contains("IX_Stocks_Attributes", string.Join(Environment.NewLine, jsonbPlanLines), StringComparison.OrdinalIgnoreCase);
+
+        var ownershipExplainSql = $"EXPLAIN (COSTS OFF) SELECT s.\"Id\" FROM \"Stocks\" AS s INNER JOIN \"Warehouses\" AS w ON s.\"WarehouseId\" = w.\"Id\" WHERE w.\"CompanyId\" = '{companyId}' ORDER BY s.\"CreatedAt\" DESC, s.\"Id\"";
+        var ownershipPlanLines = await ReadPlanAsync(connection, transaction, ownershipExplainSql);
+        var ownershipPlan = string.Join(Environment.NewLine, ownershipPlanLines);
+        Assert.Contains("IX_Warehouses_CompanyId", ownershipPlan, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IX_Stocks_WarehouseId", ownershipPlan, StringComparison.OrdinalIgnoreCase);
         await transaction.RollbackAsync();
         await dbContext.Database.CloseConnectionAsync();
     }
@@ -220,4 +245,20 @@ public sealed class StockMapIntegrationTests : IAsyncLifetime
             AvailableTo = availableTo,
             IsActive = isActive
         };
+
+    private static async Task<List<string>> ReadPlanAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string explainSql)
+    {
+        var planLines = new List<string>();
+        await using var explain = new NpgsqlCommand(explainSql, connection, transaction);
+        await using var reader = await explain.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            planLines.Add(reader.GetString(0));
+        }
+
+        return planLines;
+    }
 }

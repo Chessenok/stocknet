@@ -33,6 +33,12 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AttributeRules")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -49,12 +55,6 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("ParentId")
                         .HasColumnType("integer");
-
-                    b.Property<string>("RequiredAttributeKeys")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("jsonb")
-                        .HasDefaultValueSql("'[]'::jsonb");
 
                     b.Property<string>("Slug")
                         .IsRequired()
@@ -87,102 +87,102 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = 1,
+                            AttributeRules = "[{\"Key\":\"steel_grade\",\"Type\":\"String\",\"IsRequired\":true,\"Min\":null,\"Max\":null,\"AllowedValues\":[\"a36\",\"s235\",\"s355\"]}]",
                             Description = "Ferrous and non-ferrous raw materials",
                             IsActive = true,
                             Name = "Metals",
-                            RequiredAttributeKeys = "[\"steel_grade\"]",
                             Slug = "metals",
                             SortOrder = 10
                         },
                         new
                         {
                             Id = 2,
+                            AttributeRules = "[]",
                             Description = "Plastic resins and recycled polymers",
                             IsActive = true,
                             Name = "Plastics",
-                            RequiredAttributeKeys = "[]",
                             Slug = "plastics",
                             SortOrder = 20
                         },
                         new
                         {
                             Id = 3,
+                            AttributeRules = "[]",
                             Description = "Timber, lumber, and wood-based materials",
                             IsActive = true,
                             Name = "Wood",
-                            RequiredAttributeKeys = "[]",
                             Slug = "wood",
                             SortOrder = 30
                         },
                         new
                         {
                             Id = 4,
+                            AttributeRules = "[]",
                             Description = "Paper, pulp, and cardboard materials",
                             IsActive = true,
                             Name = "Paper",
-                            RequiredAttributeKeys = "[]",
                             Slug = "paper",
                             SortOrder = 40
                         },
                         new
                         {
                             Id = 5,
+                            AttributeRules = "[]",
                             Description = "Aggregates and other construction raw materials",
                             IsActive = true,
                             Name = "Construction Materials",
-                            RequiredAttributeKeys = "[]",
                             Slug = "construction-materials",
                             SortOrder = 50
                         },
                         new
                         {
                             Id = 6,
+                            AttributeRules = "[]",
                             Description = "Industrial and agricultural chemicals",
                             IsActive = true,
                             Name = "Chemicals",
-                            RequiredAttributeKeys = "[]",
                             Slug = "chemicals",
                             SortOrder = 60
                         },
                         new
                         {
                             Id = 7,
+                            AttributeRules = "[]",
                             Description = "Agricultural raw materials and by-products",
                             IsActive = true,
                             Name = "Agricultural Materials",
-                            RequiredAttributeKeys = "[]",
                             Slug = "agricultural-materials",
                             SortOrder = 70
                         },
                         new
                         {
                             Id = 8,
+                            AttributeRules = "[]",
                             Description = "Other raw materials",
                             IsActive = true,
                             Name = "Other",
-                            RequiredAttributeKeys = "[]",
                             Slug = "other",
                             SortOrder = 80
                         },
                         new
                         {
                             Id = 9,
+                            AttributeRules = "[{\"Key\":\"moisture\",\"Type\":\"Number\",\"IsRequired\":true,\"Min\":0,\"Max\":100,\"AllowedValues\":[]},{\"Key\":\"germination_rate\",\"Type\":\"Number\",\"IsRequired\":true,\"Min\":0,\"Max\":100,\"AllowedValues\":[]}]",
                             Description = "Seeds and planting material",
                             IsActive = true,
                             Name = "Seeds",
                             ParentId = 7,
-                            RequiredAttributeKeys = "[\"moisture\",\"germination_rate\"]",
                             Slug = "seeds",
                             SortOrder = 10
                         },
                         new
                         {
                             Id = 10,
+                            AttributeRules = "[{\"Key\":\"equipment_type\",\"Type\":\"String\",\"IsRequired\":false,\"Min\":null,\"Max\":null,\"AllowedValues\":[\"compressor\",\"motor\",\"pump\"]}]",
                             Description = "Equipment and discrete industrial goods",
                             IsActive = true,
                             Name = "Industrial Equipment",
                             ParentId = 8,
-                            RequiredAttributeKeys = "[]",
                             Slug = "industrial-equipment",
                             SortOrder = 10
                         });
@@ -439,9 +439,17 @@ namespace StockNet.Api.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Attributes")
+                        .HasDatabaseName("IX_Stocks_Attributes");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Attributes"), "gin");
+
                     b.HasIndex("WarehouseId");
 
                     b.HasIndex("CategoryId", "IsActive");
+
+                    b.HasIndex("WarehouseId", "CreatedAt")
+                        .HasDatabaseName("IX_Stocks_WarehouseId_CreatedAt");
 
                     b.HasIndex("IsActive", "AvailableFrom", "AvailableTo");
 

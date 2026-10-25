@@ -20,6 +20,9 @@ public sealed class StockMapQuery : IValidatableObject
     [EnumDataType(typeof(UnitOfMeasure))]
     public UnitOfMeasure? Unit { get; init; }
 
+    [StringLength(16_000)]
+    public string? AttributeFilters { get; init; }
+
     [Range(typeof(decimal), "0", "99999999999999.9999", ParseLimitsInInvariantCulture = true)]
     public decimal? MinPrice { get; init; }
 

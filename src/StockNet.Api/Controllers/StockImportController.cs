@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using MiniExcelLibs;
 using StockNet.Api.Contracts.Stocks;
 using StockNet.Api.Domain.Entities;
+using StockNet.Api.Domain.Enums;
 using StockNet.Api.Infrastructure.Authorization;
 using StockNet.Api.Infrastructure.Persistence;
 using StockNet.Api.Services;
@@ -129,11 +130,11 @@ public sealed class StockImportController(
                 }
             }
 
-            var missingAttributes = StockAttributeValidator.GetMissingRequiredKeys(category, attributes);
-            foreach (var missingAttribute in missingAttributes)
+            var attributeErrors = StockAttributeValidator.Validate(category, attributes);
+            foreach (var attributeError in attributeErrors)
             {
                 AddImportError(errors, index + 2, nameof(StockImportRow.AttributesJson),
-                    $"The '{missingAttribute}' attribute is required for category '{category.Name}'.");
+                    attributeError);
             }
         }
 
@@ -171,7 +172,7 @@ public sealed class StockImportController(
                     TotalQuantity = row.TotalQuantity!.Value,
                     MinOrderQuantity = row.MinOrderQuantity!.Value,
                     StepQuantity = row.StepQuantity!.Value,
-                    Unit = row.Unit!.Value,
+                    Unit = row.Unit ?? UnitOfMeasure.Tons,
                     PackagingType = row.PackagingType.Trim(),
                     PricePerUnit = row.PricePerUnit!.Value,
                     Currency = row.Currency.Trim().ToUpperInvariant(),

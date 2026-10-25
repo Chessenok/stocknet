@@ -50,6 +50,11 @@ public sealed class StockConfiguration : IEntityTypeConfiguration<Stock>
         builder.HasIndex(stock => new { stock.IsActive, stock.AvailableFrom, stock.AvailableTo });
         builder.HasIndex(stock => new { stock.CategoryId, stock.IsActive });
         builder.HasIndex(stock => stock.WarehouseId);
+        builder.HasIndex(stock => new { stock.WarehouseId, stock.CreatedAt })
+            .HasDatabaseName("IX_Stocks_WarehouseId_CreatedAt");
+        builder.HasIndex(stock => stock.Attributes)
+            .HasMethod("gin")
+            .HasDatabaseName("IX_Stocks_Attributes");
 
         builder.HasMany(stock => stock.MessageThreads)
             .WithOne(thread => thread.Stock)
