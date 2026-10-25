@@ -77,16 +77,16 @@ Build the non-root multi-stage API image with `docker build -t stocknet-api .`. 
 
 ## Local performance / load testing
 
-Load tests use [k6](https://k6.io) and live in `tests/k6/`. Start the API and database first, then run:
+Isolated performance runs use Docker Compose, PostgreSQL/PostGIS, and [k6](https://k6.io). The harness rebuilds the API image, migrates and seeds 100k stocks, and caps the full test containers at a combined 2 CPUs / 4 GB (API: 0.9 CPU / 1.5 GB, DB: 0.9 CPU / 2 GB, k6: 0.2 CPU / 512 MB):
 
-```sh
-k6 run tests/k6/smoke.js
-k6 run tests/k6/load-map.js
+```powershell
+.\scripts\run-performance-tests.ps1 -Scenario load-business
+.\scripts\run-performance-tests.ps1 -Scenario load-indexes
+.\scripts\run-index-plans.ps1
 ```
 
-`load-map.js` drives the spatial discovery endpoint with up to 50 VUs. For stable results on macOS, give Colima/Docker at least 4 CPUs and 8 GB RAM; otherwise PostgreSQL can drop connections and Npgsql may report `cache lookup failed` (OID/type desync). If that happens, restart the database and retry:
+To quickly verify the authenticated index endpoints before a full run, start the perf stack and run `docker compose -f docker-compose.perf.yml run --rm -e K6_SMOKE=true k6 run /scripts/load-indexes.js`.
 
-```sh
-docker compose down -v && docker compose up -d db
-dotnet ef database update --project src/StockNet.Api/StockNet.Api.csproj --startup-project src/StockNet.Api/StockNet.Api.csproj
-```
+`load-business.js` exercises spatial search with category, price, radius, and paging filters at 100–200 requests/minute with a 500/minute peak. `load-indexes.js` logs in as the local seeded supplier and exercises company stock/warehouse reads, message-thread lists, message pages, and spatial/category/price search at 200 requests/minute with a 500/minute peak. The index fixtures give that supplier 10k stocks and add 50k message threads plus about 101k messages. `run-index-plans.ps1` prints PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)` plans for those query patterns.
+
+The company stock endpoint currently returns all matching stocks (no pagination), so that scenario intentionally measures both index lookup and response serialization/transfer. An index can reduce lookup work, but returning `k` matching rows still costs at least O(k); inspect the actual query plan and timings at multiple table sizes rather than inferring complexity from a single k6 run. Performance Compose cleanup removes its isolated volume when the runner exits.
