@@ -213,6 +213,31 @@ public sealed class MvpCompletionIntegrationTests : IAsyncLifetime
         var legacyStock = Assert.Single(importedStocks!, stock => stock.GetProperty("title").GetString() == "M7 legacy import stock");
         Assert.Equal("Tons", legacyStock.GetProperty("unit").GetString());
 
+        using var firstStockPageResponse = await SendJsonlessAsync(
+            HttpMethod.Get,
+            "/api/stocks/my?page=1&pageSize=1",
+            newCompany.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, firstStockPageResponse.StatusCode);
+        var firstStockPage = await firstStockPageResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+        Assert.Single(firstStockPage!);
+
+        using var secondStockPageResponse = await SendJsonlessAsync(
+            HttpMethod.Get,
+            "/api/stocks/my?page=2&pageSize=1",
+            newCompany.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, secondStockPageResponse.StatusCode);
+        var secondStockPage = await secondStockPageResponse.Content.ReadFromJsonAsync<List<JsonElement>>();
+        Assert.Single(secondStockPage!);
+        Assert.NotEqual(
+            firstStockPage![0].GetProperty("id").GetGuid(),
+            secondStockPage![0].GetProperty("id").GetGuid());
+
+        using var invalidStockPageResponse = await SendJsonlessAsync(
+            HttpMethod.Get,
+            "/api/stocks/my?page=1&pageSize=101",
+            newCompany.AccessToken);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidStockPageResponse.StatusCode);
+
         var fractionalPiecesRequest = await SendJsonAsync(HttpMethod.Post, "/api/stocks", newCompany.AccessToken, new
         {
             warehouseId,

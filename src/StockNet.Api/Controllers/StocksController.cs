@@ -266,7 +266,9 @@ public sealed class StocksController(
 
     [HttpGet("my")]
     [ProducesResponseType<IReadOnlyList<StockDto>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<StockDto>>> ListMine(CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<StockDto>>> ListMine(
+        [FromQuery] StockListQuery query,
+        CancellationToken cancellationToken)
     {
         var companyId = User.GetCompanyId();
         var stockRows = await dbContext.Stocks
@@ -274,6 +276,8 @@ public sealed class StocksController(
             .Where(stock => stock.Warehouse.CompanyId == companyId)
             .OrderByDescending(stock => stock.CreatedAt)
             .ThenBy(stock => stock.Id)
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
             .Select(StockProjection.Projection)
             .ToListAsync(cancellationToken);
 

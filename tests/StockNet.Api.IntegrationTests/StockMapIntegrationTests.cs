@@ -185,6 +185,41 @@ public sealed class StockMapIntegrationTests : IAsyncLifetime
         await dbContext.Database.CloseConnectionAsync();
     }
 
+    [Fact]
+    public async Task Map_filters_jsonb_attributes_by_containment_and_rejects_invalid_filter_shapes()
+    {
+        var basePath = string.Create(
+            CultureInfo.InvariantCulture,
+            $"/api/stocks/map?latitude={CenterLatitude}&longitude={CenterLongitude}&radius=5000&categoryId=1&pageSize=100");
+
+        async Task<List<JsonElement>> SearchAsync(string filter)
+        {
+            var response = await client!.GetAsync($"{basePath}&attributeFilters={Uri.EscapeDataString(filter)}");
+            Assert.True(
+                response.StatusCode == HttpStatusCode.OK,
+                $"Expected map search success; received {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+            return (await response.Content.ReadFromJsonAsync<List<JsonElement>>())!;
+        }
+
+        var partialMatch = await SearchAsync("{\"steel_grade\":\"a36\"}");
+        Assert.Equal("Nearby active stock", Assert.Single(partialMatch).GetProperty("title").GetString());
+
+        var compoundMatch = await SearchAsync("{\"steel_grade\":\"a36\",\"grade\":\"A\"}");
+        Assert.Equal("Nearby active stock", Assert.Single(compoundMatch).GetProperty("title").GetString());
+
+        var differentGrade = await SearchAsync("{\"steel_grade\":\"s235\"}");
+        Assert.Equal("Nearby different steel grade", Assert.Single(differentGrade).GetProperty("title").GetString());
+
+        var impossibleGrade = await SearchAsync("{\"steel_grade\":\"not-a-grade\"}");
+        Assert.Empty(impossibleGrade);
+
+        var malformedJson = await client!.GetAsync($"{basePath}&attributeFilters={Uri.EscapeDataString("{invalid")}");
+        Assert.Equal(HttpStatusCode.BadRequest, malformedJson.StatusCode);
+
+        var nonObjectJson = await client.GetAsync($"{basePath}&attributeFilters={Uri.EscapeDataString("[1,2]")}");
+        Assert.Equal(HttpStatusCode.BadRequest, nonObjectJson.StatusCode);
+    }
+
     public async Task DisposeAsync()
     {
         if (factory is not null)

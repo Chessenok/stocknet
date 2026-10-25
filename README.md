@@ -90,3 +90,24 @@ k6 run tests/k6/load-map.js
 docker compose down -v && docker compose up -d db
 dotnet ef database update --project src/StockNet.Api/StockNet.Api.csproj --startup-project src/StockNet.Api/StockNet.Api.csproj
 ```
+
+### JSONB attribute filtering
+
+`tests/k6/load-jsonb.js` filters 100k seeded stocks using string attributes (`steel_grade`, `equipment_type`) and numeric Seeds attributes (`moisture`, `germination_rate`). It verifies every returned row matches the requested JSONB values, tests compound containment and no-match behavior, and applies 200 requests/minute with a 500/minute peak. The seed uses valid category-schema values and a fixed warehouse location for repeatable results. Run a short route/data sanity check or the full load profile:
+
+```powershell
+.\scripts\run-jsonb-load.ps1 -Smoke
+.\scripts\run-jsonb-load.ps1
+```
+
+The integration suite also checks partial/compound JSONB containment, invalid filter shapes, and use of the `IX_Stocks_Attributes` GIN index.
+
+### Index workload
+
+```powershell
+.\scripts\run-index-load.ps1 -Smoke
+.\scripts\run-index-load.ps1
+.\scripts\run-index-plans.ps1
+```
+
+`GET /api/stocks/my` accepts `page` and `pageSize` (defaults to 1 and 50; max page size 100). The index workload reads a 100-row page from a supplier inventory of 10k stocks, supplier warehouses, 5k supplier threads, a 50-message page from a 1k-message thread, and a JSONB/spatial map result. The plan report uses `EXPLAIN (ANALYZE, BUFFERS)` against the matching 100k-stock, 50k-thread, and ~101k-message fixture. Paginate company stock reads rather than repeatedly transferring the full inventory; the plan output shows whether PostgreSQL can use the warehouse/stock indexes for the page.
